@@ -51,7 +51,6 @@
       font-size: 11px; 
       dominant-baseline: middle; 
     }
-    .leader-line { fill: none; stroke: #777; stroke-width: 1; opacity: 0.5; }
   </style>
 </head>
 <body>
@@ -92,8 +91,6 @@
         return parsed;
       }).filter(d => !isNaN(d.Year));
 
-      console.log("Parsed data sample (first year):", data[0]);
-
       const allKeys = Object.keys(data[0] || {});
       const sourceKeys = allKeys.filter(k => 
         k !== "Year" && 
@@ -102,8 +99,6 @@
         !k.toLowerCase().includes("percentage") &&
         !k.toLowerCase().includes("cross-boundary")
       );
-
-      console.log("Detected source keys:", sourceKeys);
 
       const totalKey = allKeys.find(k => k.toLowerCase().includes("energy from renewable")) || 
                        "Energy from renewable & waste sources";
@@ -229,23 +224,21 @@
           return;
         }
 
-        const width = 680;   // wider to comfortably fit legend
+        const width = 680;
         const height = 460;
-        const radius = Math.min(width - 280, height) / 2 - 60;   // leave space for legend
-        const labelRadius = radius + 40;
+        const radius = Math.min(width - 280, height) / 2 - 60;
 
         const svg = d3.select("#pie-chart").html("")
           .append("svg")
           .attr("width", width)
           .attr("height", height)
           .append("g")
-          .attr("transform", `translate(${width / 2 - 100}, ${height / 2})`);  // center pie, leave right for legend
+          .attr("transform", `translate(${width / 2 - 100}, ${height / 2})`);
 
         const pie = d3.pie().value(d => d.value).sort(null);
         const arc = d3.arc().innerRadius(0).outerRadius(radius);
-        const outerArc = d3.arc().innerRadius(labelRadius).outerRadius(labelRadius);
 
-        // Slices
+        // Slices (no labels on pie)
         svg.selectAll("path.slice")
           .data(pie(pieData))
           .join("path")
@@ -262,39 +255,6 @@
           })
           .on("mouseout", () => tooltip.style("visibility", "hidden"));
 
-        // Leader lines + outside labels
-        const labelGroups = svg.selectAll("g.label-group")
-          .data(pie(pieData))
-          .join("g");
-
-        labelGroups.append("polyline")
-          .attr("class", "leader-line")
-          .attr("points", d => {
-            const posA = arc.centroid(d);
-            const posB = outerArc.centroid(d);
-            const midAngle = d.startAngle + (d.endAngle - d.startAngle) / 2;
-            const posC = [
-              labelRadius * 1.18 * Math.cos(midAngle - Math.PI / 2),
-              labelRadius * 1.18 * Math.sin(midAngle - Math.PI / 2)
-            ];
-            return [posA, posB, posC].map(p => p.join(",")).join(" ");
-          });
-
-        labelGroups.append("text")
-          .attr("transform", d => {
-            const midAngle = d.startAngle + (d.endAngle - d.startAngle) / 2;
-            const x = labelRadius * 1.18 * Math.cos(midAngle - Math.PI / 2);
-            const y = labelRadius * 1.18 * Math.sin(midAngle - Math.PI / 2);
-            return `translate(${x},${y})`;
-          })
-          .attr("dy", "0.35em")
-          .attr("text-anchor", d => {
-            const midAngleDeg = (d.startAngle + d.endAngle) / 2 * 180 / Math.PI;
-            return midAngleDeg < 180 ? "start" : "end";
-          })
-          .attr("font-size", "10px")
-          .text(d => (d.data.value / total * 100 > 1) ? `${(d.data.value / total * 100).toFixed(1)}%` : "");
-
         // Title
         svg.append("text")
           .attr("y", -radius - 60)
@@ -303,7 +263,7 @@
           .attr("font-size", "14px")
           .text(`Source Shares – ${title} (Total: ${total.toFixed(3)} Mtoe)`);
 
-        // Right-side legend with wrapping text
+        // Legend – only place with percentages
         const legend = svg.append("g")
           .attr("transform", `translate(${radius + 140}, -${height/2 + 30})`)
           .attr("class", "legend");
@@ -325,17 +285,16 @@
           .each(function(d) {
             const pct = (d.value / total * 100).toFixed(1);
             let name = d.name;
-            const maxChars = 28;
+            const maxChars = 30;
             if (name.length > maxChars) name = name.substring(0, maxChars - 3) + "...";
-            const text = d3.select(this);
-            text.text(`${name} (${pct}%)`);
+            d3.select(this).text(`${name} (${pct}%)`);
           });
 
-        // Make legend scrollable if too tall
+        // Optional clipping/scroll for very long legends
         svg.append("clipPath")
           .attr("id", "legend-clip")
           .append("rect")
-          .attr("width", 240)
+          .attr("width", 260)
           .attr("height", height - 80)
           .attr("x", radius + 120)
           .attr("y", -height/2 + 20);
