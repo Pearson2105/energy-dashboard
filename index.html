@@ -232,7 +232,6 @@
         svg.append("g").call(d3.axisLeft(y));
       }
 
-      /* ✅ BAR CHART RESTORED (unchanged logic from working version) */
       function updateBarChart() {
         const {data:disp, title} = getDisplayData();
         const barData = sourceKeys.map(k=>({source:k, value:disp[k]||0}))
@@ -293,12 +292,88 @@
       }
 
       function updatePieChart() {
-        /* unchanged */
+        const {data:disp, title} = getDisplayData();
+        let pieData = sourceKeys.map(k=>({name:k, value:disp[k]||0})).filter(d=>d.value>0);
+        const total = pieData.reduce((a,d)=>a+d.value,0) || disp.Total || 1;
+
+        if (pieData.length === 0) {
+          d3.select("#pie-chart").html("<p class='error'>No data for selected view</p>");
+          return;
+        }
+
+        pieData = pieData.sort((a,b) => b.value - a.value);
+
+        const width = 580;
+        const height = 380;
+        const radius = 110;
+        const pieCenterX = 140;
+
+        const svg = d3.select("#pie-chart").html("")
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height);
+
+        const g = svg.append("g")
+          .attr("transform", `translate(${pieCenterX},${height/2})`);
+
+        const pie = d3.pie().value(d => d.value);
+        const arc = d3.arc().innerRadius(0).outerRadius(radius);
+
+        g.selectAll("path")
+          .data(pie(pieData))
+          .join("path")
+          .attr("d", arc)
+          .attr("fill", d => sourceColor(d.data.name))
+          .on("mouseover",(event,d)=>{
+            tooltip.style("visibility","visible")
+              .html(`${d.data.name}<br>${d.data.value.toFixed(3)} Mtoe<br>${(d.data.value/total*100).toFixed(1)}%`);
+          })
+          .on("mousemove",event=>{
+            tooltip.style("top",(event.pageY-15)+"px")
+                   .style("left",(event.pageX+15)+"px");
+          })
+          .on("mouseout",()=>{ tooltip.style("visibility","hidden"); });
+
+        svg.append("text")
+          .attr("x", pieCenterX)
+          .attr("y", 35)
+          .attr("text-anchor", "middle")
+          .style("font-weight", "bold")
+          .text(`Source Shares – ${title}`);
+
+        const legendX = pieCenterX + radius + 40;
+        const legendY = 50;
+        const legendWidth = 260;
+        const legendHeight = 280;
+
+        const foreignObject = svg.append("foreignObject")
+          .attr("x", legendX)
+          .attr("y", legendY)
+          .attr("width", legendWidth)
+          .attr("height", legendHeight);
+
+        const legendDiv = foreignObject.append("xhtml:div")
+          .style("height", legendHeight + "px")
+          .style("overflow-y", "auto")
+          .attr("class", "legend-fo");
+
+        pieData.forEach(d => {
+          const pct = (d.value / total * 100).toFixed(1);
+          const item = legendDiv.append("div").attr("class", "legend-item");
+
+          item.append("div")
+            .attr("class", "legend-color")
+            .style("background-color", sourceColor(d.name));
+
+          item.append("div")
+            .attr("class", "legend-text")
+            .html(`${d.name} – ${pct}% (${d.value.toFixed(3)} Mtoe)`);
+        });
       }
 
       updateAll = function() {
         updateLineChart();
-        updateBarChart(); /* ✅ added back */
+        updateBarChart();
         updatePieChart();
       };
 
