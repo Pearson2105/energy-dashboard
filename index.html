@@ -10,7 +10,7 @@
     h1 { text-align:center; margin:20px 0 5px; }
     .subtitle { text-align:center; margin-bottom:20px; color:#555; }
     .container { display:flex; flex-wrap:wrap; gap:20px; justify-content:center; padding:20px; }
-    .chart { background:white; padding:15px; border:1px solid #ddd; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.08); }
+    .chart { background:white; padding:15px; border:1px solid #ddd; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.08); min-height:380px; }
     .footer { text-align:center; padding:20px; font-size:12px; color:#666; }
     button { padding:10px 20px; font-size:15px; margin:10px; cursor:pointer; }
     .tooltip {
@@ -19,6 +19,7 @@
       pointer-events:none; z-index:1000; font-size:13px; max-width:280px;
     }
     .brush .selection { fill:#ddd; fill-opacity:.3; stroke:#999; }
+    .error { color:red; text-align:center; padding:20px; font-weight:bold; }
   </style>
 </head>
 <body>
@@ -37,7 +38,7 @@
 
   <div class="footer">
     Interactive D3.js dashboard for SET09123/SET11129 • 
-    <a href="https://github.com/YOUR-USERNAME/uk-renewable-energy-dashboard" target="_blank">View source on GitHub</a>
+    <a href="https://github.com/pearson2105/energy-dashboard" target="_blank">View source on GitHub</a>
   </div>
 
   <script>
@@ -47,24 +48,33 @@
     const tooltip = d3.select("body").append("div").attr("class", "tooltip");
 
     d3.csv("renewables_sources.csv").then(rawData => {
+      console.log("CSV loaded – rows:", rawData.length);
+
       const data = rawData.map(d => {
-        const parsed = { Year: +d.Year };
+        const parsed = { Year: +d.Year.trim() };
         Object.keys(d).forEach(key => {
-          if (key !== "Year") {
-            let val = d[key];
-            parsed[key] = (val === "-" || val === "[low]" || val === "" || val == null) ? 0 : +val;
-          }
+          const trimmedKey = key.trim();
+          let val = d[key]?.trim() || "";
+          parsed[trimmedKey] = (val === "-" || val === "[low]" || val === "" || val == null) ? 0 : +val;
         });
         return parsed;
-      });
+      }).filter(d => !isNaN(d.Year));
 
-      const allKeys = Object.keys(data[0]);
+      console.log("Parsed data sample (first year):", data[0]);
+
+      const allKeys = Object.keys(data[0] || {});
       const sourceKeys = allKeys.filter(k => 
         k !== "Year" && 
         !k.toLowerCase().includes("energy from renewable") &&
         !k.toLowerCase().includes("total energy consumption") &&
-        !k.toLowerCase().includes("percentage")
+        !k.toLowerCase().includes("percentage") &&
+        !k.toLowerCase().includes("cross-boundary")
       );
+
+      console.log("Detected source keys:", sourceKeys);
+
+      // Find total column more flexibly
+      const totalKey = allKeys.find(k => k.toLowerCase().includes("energy from renewable")) || "Energy from renewable & waste sources";
 
       const sourceColor = d3.scaleOrdinal(d3.schemeTableau10).domain(sourceKeys);
 
@@ -72,14 +82,15 @@
         let disp = {}, title = "";
         if (brushRange) {
           const years = data.filter(d => d.Year >= brushRange.start && d.Year <= brushRange.end);
-          sourceKeys.forEach(k => disp[k] = d3.mean(years, d => d[k] || 0));
-          disp.Total = d3.mean(years, d => d["Energy from renewable & waste sources"] || 0);
-          title = `${brushRange.start}–${brushRange.end} (avg)`;
+          if (years.length === 0) years = data;
+          sourceKeys.forEach(k => disp[k] = d3.mean(years, row => row[k] || 0));
+          disp.Total = d3.mean(years, row => row[totalKey] || 0);
+          title = `${brushRange.start}–${brushRange.end} (average)`;
         } else {
-          const y = selectedYear || data[data.length-1].Year;
-          const row = data.find(d => d.Year === y) || data[data.length-1];
+          const y = selectedYear || data[data.length-1]?.Year;
+          const row = data.find(d => d.Year === y) || data[data.length-1] || {};
           Object.assign(disp, row);
-          title = y.toString();
+          title = y ? y.toString() : "No data";
         }
         return { data: disp, title };
       }
@@ -94,19 +105,22 @@
           .attr("height", h + margin.top + margin.bottom)
           .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
+        const totals = data.map(d => d[totalKey] || 0);
+        const maxTotal = d3.max(totals) || 25;
+
         const x = d3.scaleLinear().domain(d3.extent(data, d=>d.Year)).range([0, w]);
-        const y = d3.scaleLinear().domain([0, d3.max(data, d => d["Energy from renewable & waste sources"] || 0) * 1.05]).range([h, 0]);
+        const y = d3.scaleLinear().domain([0, maxTotal * 1.05]).range([h, 0]);
 
         svg.append("path")
           .datum(data)
           .attr("fill", "none").attr("stroke", "#1f77b4").attr("stroke-width", 3)
-          .attr("d", d3.line().x(d=>x(d.Year)).y(d => y(d["Energy from renewable & waste sources"] || 0)));
+          .attr("d", d3.line().x(d=>x(d.Year)).y(d => y(d[totalKey] || 0)));
 
         svg.selectAll(".dot").data(data).join("circle")
-          .attr("cx", d=>x(d.Year)).attr("cy", d=>y(d["Energy from renewable & waste sources"] || 0)).attr("r", 5)
+          .attr("cx", d=>x(d.Year)).attr("cy", d=>y(d[totalKey] || 0)).attr("r", 5)
           .attr("fill", d => d.Year === selectedYear ? "#ff7f0e" : "#1f77b4")
           .on("click", (_,d)=>{ selectedYear = (selectedYear===d.Year)?null:d.Year; brushRange=null; updateAll(); })
-          .on("mouseover", (event,d)=>{ tooltip.style("visibility","visible").html(`Year: ${d.Year}<br>Total: ${(d["Energy from renewable & waste sources"]||0).toFixed(3)} Mtoe`); })
+          .on("mouseover", (event,d)=>{ tooltip.style("visibility","visible").html(`Year: ${d.Year}<br>Total: ${(d[totalKey]||0).toFixed(3)} Mtoe`); })
           .on("mousemove", event=>{ tooltip.style("top",(event.pageY-15)+"px").style("left",(event.pageX+15)+"px"); })
           .on("mouseout", ()=>{ tooltip.style("visibility","hidden"); });
 
@@ -128,10 +142,19 @@
         svg.append("text").attr("transform","rotate(-90)").attr("x",-h/2).attr("y",-55).attr("text-anchor","middle").text("Total Renewable & Waste (Mtoe)");
       }
 
+      // Bar and Pie functions remain similar – just using sourceKeys and totalKey
+      // (copy updateBarChart and updatePieChart from previous version, but replace "Energy from renewable & waste sources" with totalKey)
+
       function updateBarChart() {
         const {data:disp, title} = getDisplayData();
         const barData = sourceKeys.map(k=>({source:k, value:disp[k]||0}))
+          .filter(d=>d.value > 0)
           .sort((a,b)=>b.value-a.value).slice(0,15);
+
+        if (barData.length === 0) {
+          d3.select("#bar-chart").html("<p class='error'>No data for selected view</p>");
+          return;
+        }
 
         const margin = {top:40,right:30,bottom:20,left:220};
         const w = 520 - margin.left - margin.right;
@@ -158,13 +181,18 @@
         svg.append("g").attr("transform",`translate(0,${h})`).call(d3.axisBottom(x));
 
         svg.append("text").attr("x",w/2).attr("y",-10).attr("text-anchor","middle").style("font-weight","bold")
-          .text(`Top Sources – ${title} (Total: ${disp.Total.toFixed(3)} Mtoe)`);
+          .text(`Top Sources – ${title} (Total: ${(disp.Total||0).toFixed(3)} Mtoe)`);
       }
 
       function updatePieChart() {
         const {data:disp, title} = getDisplayData();
         const pieData = sourceKeys.map(k=>({name:k, value:disp[k]||0})).filter(d=>d.value>0);
-        const total = pieData.reduce((a,d)=>a+d.value,0);
+        const total = pieData.reduce((a,d)=>a+d.value,0) || disp.Total || 1;
+
+        if (pieData.length === 0) {
+          d3.select("#pie-chart").html("<p class='error'>No data for selected view</p>");
+          return;
+        }
 
         const w=420, h=380, r = Math.min(w,h)/2 - 40;
         const svg = d3.select("#pie-chart").html("").append("svg").attr("width",w).attr("height",h)
@@ -194,6 +222,10 @@
       }
 
       updateAll();
+
+    }).catch(err => {
+      console.error("CSV load/parse error:", err);
+      document.body.insertAdjacentHTML("beforeend", '<p class="error">Failed to load or parse renewables_sources.csv – check file name, format, and browser console.</p>');
     });
 
     function resetSelection() {
