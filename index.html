@@ -6,29 +6,81 @@
   <title>UK Renewable & Waste Energy by Source (1990–2023)</title>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
-    body { font-family: Arial, Helvetica, sans-serif; margin:0; background:#f4f7f9; color:#222; }
+    body { 
+      font-family: Arial, Helvetica, sans-serif; 
+      margin:0; 
+      background:#f4f7f9; 
+      color:#222; 
+    }
     h1 { text-align:center; margin:20px 0 5px; }
     .subtitle { text-align:center; margin-bottom:20px; color:#555; }
-    .container { display:flex; flex-wrap:wrap; gap:20px; justify-content:center; padding:20px; }
-    .chart { background:white; padding:15px; border:1px solid #ddd; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.08); min-height:380px; }
+    .container { 
+      display:flex; 
+      flex-wrap:wrap; 
+      gap:20px; 
+      justify-content:center; 
+      padding:20px; 
+    }
+    .chart { 
+      background:white; 
+      padding:15px; 
+      border:1px solid #ddd; 
+      border-radius:8px; 
+      box-shadow:0 4px 12px rgba(0,0,0,0.08); 
+      min-height:380px; 
+    }
     .footer { text-align:center; padding:20px; font-size:12px; color:#666; }
     button { padding:10px 20px; font-size:15px; margin:10px; cursor:pointer; }
+    
     .tooltip {
-      position:absolute; visibility:hidden; background:#fff; border:1px solid #ccc;
-      padding:8px 12px; border-radius:4px; box-shadow:2px 2px 5px rgba(0,0,0,0.2);
-      pointer-events:none; z-index:1000; font-size:13px; max-width:280px;
+      position:absolute; 
+      visibility:hidden; 
+      background:#fff; 
+      border:1px solid #ccc;
+      padding:8px 12px; 
+      border-radius:4px; 
+      box-shadow:2px 2px 5px rgba(0,0,0,0.2);
+      pointer-events:none; 
+      z-index:1000; 
+      font-size:13px; 
+      max-width:280px;
     }
-    .brush .selection { fill:#ddd; fill-opacity:.3; stroke:#999; }
-    .error { color:red; text-align:center; padding:20px; font-weight:bold; }
+    
+    .brush .selection { 
+      fill:#ddd; 
+      fill-opacity:.3; 
+      stroke:#999; 
+    }
+    
+    .error { 
+      color:red; 
+      text-align:center; 
+      padding:20px; 
+      font-weight:bold; 
+    }
 
-    /* Legend label truncation */
+    /* Legend scrolling + wrapping */
+    .pie-legend-container {
+      max-height: 320px;
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+    
+    .pie-legend-container::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    .pie-legend-container::-webkit-scrollbar-thumb {
+      background: #aaa;
+      border-radius: 3px;
+    }
+    
     .legend-text {
-      width: 260px;
-      text-overflow: ellipsis;
-      overflow: hidden;
-      white-space: nowrap;
-      display: inline-block;
-      vertical-align: middle;
+      font-size: 13px;
+      line-height: 1.4;
+      max-width: 260px;
+      word-wrap: break-word;
+      white-space: normal;
     }
   </style>
 </head>
@@ -54,7 +106,6 @@
     const tooltip = d3.select("body").append("div").attr("class", "tooltip");
 
     d3.csv("renewables_sources.csv").then(rawData => {
-      console.log("CSV loaded – rows:", rawData.length);
       const data = rawData.map(d => {
         const parsed = { Year: +d.Year.trim() };
         Object.keys(d).forEach(key => {
@@ -65,8 +116,6 @@
         return parsed;
       }).filter(d => !isNaN(d.Year));
 
-      console.log("Parsed data sample (first year):", data[0]);
-
       const allKeys = Object.keys(data[0] || {});
       const sourceKeys = allKeys.filter(k =>
         k !== "Year" &&
@@ -75,8 +124,6 @@
         !k.toLowerCase().includes("percentage") &&
         !k.toLowerCase().includes("cross-boundary")
       );
-
-      console.log("Detected source keys:", sourceKeys);
 
       const totalKey = allKeys.find(k => k.toLowerCase().includes("energy from renewable")) || "Energy from renewable & waste sources";
       const sourceColor = d3.scaleOrdinal(d3.schemeTableau10).domain(sourceKeys);
@@ -116,7 +163,6 @@
         const x = d3.scaleLinear().domain(d3.extent(data, d=>d.Year)).range([0, w]);
         const y = d3.scaleLinear().domain([0, maxTotal * 1.05]).range([h, 0]);
 
-        // Line
         svg.append("path")
           .datum(data)
           .attr("fill", "none")
@@ -124,20 +170,18 @@
           .attr("stroke-width", 3)
           .attr("d", d3.line().x(d=>x(d.Year)).y(d => y(d[totalKey] || 0)));
 
-        // Clickable points + visual feedback
         svg.selectAll(".dot")
           .data(data)
           .join("circle")
-          .attr("class", "dot")
           .attr("cx", d => x(d.Year))
           .attr("cy", d => y(d[totalKey] || 0))
-          .attr("r", 6)
+          .attr("r", d => d.Year === selectedYear ? 7 : 5)
           .attr("fill", d => d.Year === selectedYear ? "#ff7f0e" : "#1f77b4")
           .attr("stroke", d => d.Year === selectedYear ? "#d95f02" : "white")
-          .attr("stroke-width", d => d.Year === selectedYear ? 2.5 : 1.5)
+          .attr("stroke-width", d => d.Year === selectedYear ? 2 : 1.2)
           .style("cursor", "pointer")
           .on("click", function(event, d) {
-            event.stopPropagation(); // prevent brush interference
+            event.stopPropagation();
             selectedYear = (selectedYear === d.Year) ? null : d.Year;
             brushRange = null;
             updateAll();
@@ -145,7 +189,7 @@
           .on("mouseover", function(event, d) {
             tooltip.style("visibility", "visible")
               .html(`Year: ${d.Year}<br>Total: ${(d[totalKey]||0).toFixed(3)} Mtoe`);
-            d3.select(this).transition().duration(100).attr("r", 8);
+            d3.select(this).transition().duration(80).attr("r", 9);
           })
           .on("mousemove", function(event) {
             tooltip.style("top", (event.pageY - 15) + "px")
@@ -153,10 +197,9 @@
           })
           .on("mouseout", function() {
             tooltip.style("visibility", "hidden");
-            d3.select(this).transition().duration(100).attr("r", 6);
+            d3.select(this).transition().duration(120).attr("r", d => d.Year === selectedYear ? 7 : 5);
           });
 
-        // Brush for range selection (average view)
         const brush = d3.brushX()
           .extent([[0, 0], [w, h]])
           .on("end", function(event) {
@@ -173,30 +216,13 @@
             updateAll();
           });
 
-        svg.append("g")
-          .attr("class", "brush")
-          .call(brush);
+        svg.append("g").attr("class", "brush").call(brush);
 
-        // Axes
-        svg.append("g")
-          .attr("transform", `translate(0,${h})`)
-          .call(d3.axisBottom(x).tickFormat(d3.format("d")));
+        svg.append("g").attr("transform", `translate(0,${h})`).call(d3.axisBottom(x).tickFormat(d3.format("d")));
+        svg.append("g").call(d3.axisLeft(y));
 
-        svg.append("g")
-          .call(d3.axisLeft(y));
-
-        svg.append("text")
-          .attr("x", w/2)
-          .attr("y", h + 45)
-          .attr("text-anchor", "middle")
-          .text("Year");
-
-        svg.append("text")
-          .attr("transform", "rotate(-90)")
-          .attr("x", -h/2)
-          .attr("y", -55)
-          .attr("text-anchor", "middle")
-          .text("Total Renewable & Waste (Mtoe)");
+        svg.append("text").attr("x",w/2).attr("y",h+45).attr("text-anchor","middle").text("Year");
+        svg.append("text").attr("transform","rotate(-90)").attr("x",-h/2).attr("y",-55).attr("text-anchor","middle").text("Total Renewable & Waste (Mtoe)");
       }
 
       function updateBarChart() {
@@ -216,45 +242,25 @@
 
         const svg = d3.select("#bar-chart").html("")
           .append("svg")
-          .attr("width", w+margin.left+margin.right)
-          .attr("height", h+margin.top+margin.bottom)
-          .append("g")
-          .attr("transform", `translate(${margin.left},${margin.top})`);
+          .attr("width", w+margin.left+margin.right).attr("height", h+margin.top+margin.bottom)
+          .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
         const x = d3.scaleLinear().domain([0, d3.max(barData,d=>d.value)*1.1]).range([0,w]);
         const y = d3.scaleBand().domain(barData.map(d=>d.source)).range([0,h]).padding(0.2);
 
-        svg.selectAll(".bar")
-          .data(barData)
-          .join("rect")
-          .attr("x", 0)
-          .attr("y", d=>y(d.source))
-          .attr("width", d=>x(d.value))
-          .attr("height", y.bandwidth())
+        svg.selectAll(".bar").data(barData).join("rect")
+          .attr("x",0).attr("y",d=>y(d.source)).attr("width",d=>x(d.value)).attr("height",y.bandwidth())
           .attr("fill", d=>sourceColor(d.source))
-          .on("mouseover",(event,d)=>{
-            tooltip.style("visibility","visible").html(`${d.source}<br>${d.value.toFixed(3)} Mtoe`);
-          })
-          .on("mousemove",event=>{
-            tooltip.style("top",(event.pageY-15)+"px").style("left",(event.pageX+15)+"px");
-          })
+          .on("mouseover",(event,d)=>{tooltip.style("visibility","visible").html(`${d.source}<br>${d.value.toFixed(3)} Mtoe`);})
+          .on("mousemove",event=>{tooltip.style("top",(event.pageY-15)+"px").style("left",(event.pageX+15)+"px");})
           .on("mouseout",()=>{tooltip.style("visibility","hidden");});
 
-        svg.selectAll(".label")
-          .data(barData)
-          .join("text")
-          .attr("x", d=>x(d.value)+5)
-          .attr("y", d=>y(d.source)+y.bandwidth()/2+4)
-          .text(d=>d.value.toFixed(3));
+        svg.selectAll(".label").data(barData).join("text")
+          .attr("x",d=>x(d.value)+5).attr("y",d=>y(d.source)+y.bandwidth()/2+4).text(d=>d.value.toFixed(3));
 
         svg.append("g").call(d3.axisLeft(y));
         svg.append("g").attr("transform",`translate(0,${h})`).call(d3.axisBottom(x));
-
-        svg.append("text")
-          .attr("x", w/2)
-          .attr("y", -10)
-          .attr("text-anchor", "middle")
-          .style("font-weight", "bold")
+        svg.append("text").attr("x",w/2).attr("y",-10).attr("text-anchor","middle").style("font-weight","bold")
           .text(`Top Sources – ${title} (Total: ${(disp.Total||0).toFixed(3)} Mtoe)`);
       }
 
@@ -268,7 +274,6 @@
           return;
         }
 
-        // Sort descending by value → highest % first in legend
         pieData = pieData.sort((a,b) => b.value - a.value);
 
         const width = 580;
@@ -296,10 +301,8 @@
             tooltip.style("visibility","visible")
               .html(`${d.data.name}<br>${d.data.value.toFixed(3)} Mtoe<br>${(d.data.value/total*100).toFixed(1)}%`);
           })
-          .on("mousemove",event=>{
-            tooltip.style("top",(event.pageY-15)+"px").style("left",(event.pageX+15)+"px");
-          })
-          .on("mouseout",()=>{ tooltip.style("visibility","hidden"); });
+          .on("mousemove",event=>{tooltip.style("top",(event.pageY-15)+"px").style("left",(event.pageX+15)+"px");})
+          .on("mouseout",()=>{tooltip.style("visibility","hidden");});
 
         svg.append("text")
           .attr("x", pieCenterX)
@@ -308,15 +311,18 @@
           .style("font-weight", "bold")
           .text(`Source Shares – ${title}`);
 
-        // Legend
-        const legend = svg.append("g")
-          .attr("transform", `translate(${pieCenterX + radius + 60}, ${-radius + 20})`);
+        // Legend with scroll
+        const legendGroup = svg.append("g")
+          .attr("transform", `translate(${pieCenterX + radius + 60}, 40)`);
 
-        const legendItems = legend.selectAll(".legend-item")
+        const legendContainer = legendGroup.append("g")
+          .attr("class", "pie-legend-container");
+
+        const legendItems = legendContainer.selectAll(".legend-item")
           .data(pieData)
           .join("g")
           .attr("class", "legend-item")
-          .attr("transform", (d,i) => `translate(0, ${i * 24})`);
+          .attr("transform", (d,i) => `translate(0, ${i * 28})`);
 
         legendItems.append("rect")
           .attr("width", 16)
@@ -325,13 +331,40 @@
 
         legendItems.append("text")
           .attr("x", 24)
-          .attr("y", 13)
-          .style("font-size", "13px")
+          .attr("y", 4)
+          .attr("dy", "0.35em")
           .attr("class", "legend-text")
           .text(d => {
             const pct = (d.value / total * 100).toFixed(1);
             return `${d.name} – ${pct}% (${d.value.toFixed(3)} Mtoe)`;
-          });
+          })
+          .call(wrap, 260);  // wrap function defined below
+      }
+
+      // Helper function to wrap long text
+      function wrap(text, width) {
+        text.each(function() {
+          const text = d3.select(this),
+                words = text.text().split(/\s+/).reverse(),
+                word,
+                line = [],
+                lineNumber = 0,
+                lineHeight = 1.2,
+                y = text.attr("y"),
+                dy = parseFloat(text.attr("dy")),
+                tspan = text.text(null).append("tspan").attr("x", 24).attr("y", y).attr("dy", dy + "em");
+
+          while (word = words.pop()) {
+            line.push(word);
+            tspan.text(line.join(" "));
+            if (tspan.node().getComputedTextLength() > width) {
+              line.pop();
+              tspan.text(line.join(" "));
+              line = [word];
+              tspan = text.append("tspan").attr("x", 24).attr("y", y).attr("dy", ++lineNumber * lineHeight + dy + "em").text(word);
+            }
+          }
+        });
       }
 
       function updateAll() {
@@ -349,7 +382,7 @@
     function resetSelection() {
       selectedYear = null;
       brushRange = null;
-      updateAll();  // Changed from location.reload() → smoother experience
+      updateAll();
     }
   </script>
 </body>
