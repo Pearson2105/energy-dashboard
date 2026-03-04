@@ -33,13 +33,13 @@
     }
     .chart {
       background: white;
-      padding: 20px;
+      padding: 25px;
       border: 1px solid #ddd;
       border-radius: 10px;
       box-shadow: 0 4px 16px rgba(0,0,0,0.08);
       width: 100%;
-      max-width: 900px;
-      min-height: 480px;
+      max-width: 920px;
+      min-height: 500px;
     }
     .footer {
       text-align: center;
@@ -79,7 +79,7 @@
       font-weight: bold;
     }
     .legend text {
-      font-size: 11px;
+      font-size: 12px;
       dominant-baseline: middle;
     }
   </style>
@@ -256,7 +256,7 @@
           return;
         }
 
-        const margin = { top: 80, right: 60, bottom: 80, left: 280 };
+        const margin = { top: 100, right: 60, bottom: 80, left: 280 };
         const width = 900 - margin.left - margin.right;
         const height = 480 - margin.top - margin.bottom;
 
@@ -307,10 +307,10 @@
           .attr("transform", `translate(0,${height})`)
           .call(d3.axisBottom(x));
 
-        // Centered top title for bar chart
+        // Centered top title
         svg.append("text")
           .attr("x", (width + margin.left) / 2 - margin.left / 2)
-          .attr("y", -45)
+          .attr("y", -60)
           .attr("text-anchor", "middle")
           .style("font-weight", "bold")
           .style("font-size", "18px")
@@ -331,16 +331,16 @@
           return;
         }
 
-        const width = 900;
+        const width = 920;
         const height = 520;
-        const radius = Math.min(width - 280, height) / 2 - 70;
+        const radius = Math.min(width - 300, height) / 2 - 70;
 
         const svg = d3.select("#pie-chart").html("")
           .append("svg")
           .attr("width", width)
           .attr("height", height)
           .append("g")
-          .attr("transform", `translate(${width / 2 - 100}, ${height / 2})`);
+          .attr("transform", `translate(${width / 2 - 120}, ${height / 2})`);
 
         const pie = d3.pie().value(d => d.value).sort(null);
         const arc = d3.arc().innerRadius(0).outerRadius(radius);
@@ -361,17 +361,17 @@
           })
           .on("mouseout", () => tooltip.style("visibility", "hidden"));
 
-        // Centered top title for pie chart
+        // Pie title
         svg.append("text")
-          .attr("y", -radius - 70)
+          .attr("y", -radius - 80)
           .attr("text-anchor", "middle")
           .style("font-weight", "bold")
           .style("font-size", "18px")
           .text(`Source Shares – ${title} (Total: ${total.toFixed(3)} Mtoe)`);
 
-        // Legend on the right with percentages
+        // Legend on the right
         const legend = svg.append("g")
-          .attr("transform", `translate(${radius + 160}, -${height/2 + 30})`)
+          .attr("transform", `translate(${radius + 180}, -${height/2 + 40})`)
           .attr("class", "legend");
 
         const legendItems = legend.selectAll("g")
@@ -399,10 +399,10 @@
         svg.append("clipPath")
           .attr("id", "legend-clip")
           .append("rect")
-          .attr("width", 280)
-          .attr("height", height - 100)
-          .attr("x", radius + 140)
-          .attr("y", -height/2 + 20);
+          .attr("width", 300)
+          .attr("height", height - 120)
+          .attr("x", radius + 160)
+          .attr("y", -height/2 + 30);
 
         legend.attr("clip-path", "url(#legend-clip)");
       }
