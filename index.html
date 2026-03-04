@@ -6,20 +6,48 @@
   <title>UK Renewable & Waste Energy by Source (1990–2023)</title>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
-    body { font-family: Arial, Helvetica, sans-serif; margin:0; background:#f4f7f9; color:#222; }
+    body { 
+      font-family: Arial, Helvetica, sans-serif; 
+      margin:0; 
+      background:#f4f7f9; 
+      color:#222; 
+    }
     h1 { text-align:center; margin:20px 0 5px; }
     .subtitle { text-align:center; margin-bottom:20px; color:#555; }
-    .container { display:flex; flex-wrap:wrap; gap:20px; justify-content:center; padding:20px; }
-    .chart { background:white; padding:15px; border:1px solid #ddd; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.08); min-height:380px; }
+    .container { 
+      display:flex; 
+      flex-wrap:wrap; 
+      gap:20px; 
+      justify-content:center; 
+      padding:20px; 
+    }
+    .chart { 
+      background:white; 
+      padding:15px; 
+      border:1px solid #ddd; 
+      border-radius:8px; 
+      box-shadow:0 4px 12px rgba(0,0,0,0.08); 
+      min-height:420px; 
+    }
     .footer { text-align:center; padding:20px; font-size:12px; color:#666; }
     button { padding:10px 20px; font-size:15px; margin:10px; cursor:pointer; }
     .tooltip {
-      position:absolute; visibility:hidden; background:#fff; border:1px solid #ccc;
-      padding:8px 12px; border-radius:4px; box-shadow:2px 2px 5px rgba(0,0,0,0.2);
-      pointer-events:none; z-index:1000; font-size:13px; max-width:280px;
+      position:absolute; 
+      visibility:hidden; 
+      background:#fff; 
+      border:1px solid #ccc;
+      padding:8px 12px; 
+      border-radius:4px; 
+      box-shadow:2px 2px 5px rgba(0,0,0,0.2);
+      pointer-events:none; 
+      z-index:1000; 
+      font-size:13px; 
+      max-width:280px;
     }
     .brush .selection { fill:#ddd; fill-opacity:.3; stroke:#999; }
     .error { color:red; text-align:center; padding:20px; font-weight:bold; }
+    .legend text { font-size: 11px; }
+    .leader-line { fill: none; stroke: #777; stroke-width: 1; opacity: 0.5; }
   </style>
 </head>
 <body>
@@ -73,8 +101,8 @@
 
       console.log("Detected source keys:", sourceKeys);
 
-      // Find total column more flexibly
-      const totalKey = allKeys.find(k => k.toLowerCase().includes("energy from renewable")) || "Energy from renewable & waste sources";
+      const totalKey = allKeys.find(k => k.toLowerCase().includes("energy from renewable")) || 
+                       "Energy from renewable & waste sources";
 
       const sourceColor = d3.scaleOrdinal(d3.schemeTableau10).domain(sourceKeys);
 
@@ -142,9 +170,6 @@
         svg.append("text").attr("transform","rotate(-90)").attr("x",-h/2).attr("y",-55).attr("text-anchor","middle").text("Total Renewable & Waste (Mtoe)");
       }
 
-      // Bar and Pie functions remain similar – just using sourceKeys and totalKey
-      // (copy updateBarChart and updatePieChart from previous version, but replace "Energy from renewable & waste sources" with totalKey)
-
       function updateBarChart() {
         const {data:disp, title} = getDisplayData();
         const barData = sourceKeys.map(k=>({source:k, value:disp[k]||0}))
@@ -185,34 +210,118 @@
       }
 
       function updatePieChart() {
-        const {data:disp, title} = getDisplayData();
-        const pieData = sourceKeys.map(k=>({name:k, value:disp[k]||0})).filter(d=>d.value>0);
-        const total = pieData.reduce((a,d)=>a+d.value,0) || disp.Total || 1;
+        const { data: disp, title } = getDisplayData();
+        const pieData = sourceKeys
+          .map(k => ({ name: k, value: disp[k] || 0 }))
+          .filter(d => d.value > 0)
+          .sort((a, b) => b.value - a.value);  // sort descending for legend
+
+        const total = pieData.reduce((sum, d) => sum + d.value, 0) || 1;
 
         if (pieData.length === 0) {
           d3.select("#pie-chart").html("<p class='error'>No data for selected view</p>");
           return;
         }
 
-        const w=420, h=380, r = Math.min(w,h)/2 - 40;
-        const svg = d3.select("#pie-chart").html("").append("svg").attr("width",w).attr("height",h)
-          .append("g").attr("transform",`translate(${w/2},${h/2})`);
+        const width = 620;   // wider to fit legend on the right
+        const height = 420;
+        const radius = Math.min(width - 220, height) / 2 - 60;  // leave space for legend
+        const labelRadius = radius + 35;
 
-        const pie = d3.pie().value(d=>d.value);
-        const arc = d3.arc().innerRadius(0).outerRadius(r);
+        const svg = d3.select("#pie-chart").html("")
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height)
+          .append("g")
+          .attr("transform", `translate(${width / 2 - 80}, ${height / 2})`);  // shift left to make room
 
-        svg.selectAll("path").data(pie(pieData)).join("path")
-          .attr("d",arc).attr("fill",d=>sourceColor(d.data.name))
-          .on("mouseover",(event,d)=>{tooltip.style("visibility","visible").html(`${d.data.name}<br>${d.data.value.toFixed(3)} Mtoe<br>${(d.data.value/total*100).toFixed(1)}%`);})
-          .on("mousemove",event=>{tooltip.style("top",(event.pageY-15)+"px").style("left",(event.pageX+15)+"px");})
-          .on("mouseout",()=>{tooltip.style("visibility","hidden");});
+        const pie = d3.pie().value(d => d.value).sort(null);
+        const arc = d3.arc().innerRadius(0).outerRadius(radius);
+        const outerArc = d3.arc().innerRadius(labelRadius).outerRadius(labelRadius);
 
-        svg.selectAll("text").data(pie(pieData)).join("text")
-          .attr("transform",d=>`translate(${arc.centroid(d)})`).attr("text-anchor","middle").attr("font-size","10px")
-          .text(d=>`${(d.data.value/total*100).toFixed(1)}%`);
+        // Slices
+        svg.selectAll("path.slice")
+          .data(pie(pieData))
+          .join("path")
+          .attr("class", "slice")
+          .attr("d", arc)
+          .attr("fill", d => sourceColor(d.data.name))
+          .on("mouseover", function(event, d) {
+            tooltip.style("visibility", "visible")
+              .html(`${d.data.name}<br>${d.data.value.toFixed(3)} Mtoe<br>${(d.data.value / total * 100).toFixed(1)}%`);
+          })
+          .on("mousemove", event => {
+            tooltip.style("top", (event.pageY - 15) + "px")
+              .style("left", (event.pageX + 15) + "px");
+          })
+          .on("mouseout", () => tooltip.style("visibility", "hidden"));
 
-        svg.append("text").attr("y",-r-20).attr("text-anchor","middle").style("font-weight","bold")
-          .text(`Source Shares – ${title}`);
+        // Leader lines + outside labels
+        const labelGroups = svg.selectAll("g.label-group")
+          .data(pie(pieData))
+          .join("g");
+
+        labelGroups.append("polyline")
+          .attr("class", "leader-line")
+          .attr("points", d => {
+            const posA = arc.centroid(d);
+            const posB = outerArc.centroid(d);
+            const midAngle = d.startAngle + (d.endAngle - d.startAngle) / 2;
+            const posC = [
+              labelRadius * 1.15 * Math.cos(midAngle - Math.PI / 2),
+              labelRadius * 1.15 * Math.sin(midAngle - Math.PI / 2)
+            ];
+            return [posA, posB, posC].map(p => p.join(",")).join(" ");
+          });
+
+        labelGroups.append("text")
+          .attr("transform", d => {
+            const midAngle = d.startAngle + (d.endAngle - d.startAngle) / 2;
+            const x = labelRadius * 1.15 * Math.cos(midAngle - Math.PI / 2);
+            const y = labelRadius * 1.15 * Math.sin(midAngle - Math.PI / 2);
+            return `translate(${x},${y})`;
+          })
+          .attr("dy", "0.35em")
+          .attr("text-anchor", d => {
+            const midAngleDeg = (d.startAngle + d.endAngle) / 2 * 180 / Math.PI;
+            return midAngleDeg < 180 ? "start" : "end";
+          })
+          .attr("font-size", "10px")
+          .text(d => `${(d.data.value / total * 100).toFixed(1)}%`);
+
+        // Title
+        svg.append("text")
+          .attr("y", -radius - 50)
+          .attr("text-anchor", "middle")
+          .style("font-weight", "bold")
+          .attr("font-size", "14px")
+          .text(`Source Shares – ${title} (Total: ${total.toFixed(3)} Mtoe)`);
+
+        // Side legend (right side)
+        const legendWidth = 220;
+        const legend = svg.append("g")
+          .attr("transform", `translate(${radius + 100}, -${height/2 + 40})`);
+
+        const legendItems = legend.selectAll("g")
+          .data(pieData)
+          .join("g")
+          .attr("transform", (d, i) => `translate(0, ${i * 20})`);
+
+        legendItems.append("rect")
+          .attr("width", 14)
+          .attr("height", 14)
+          .attr("fill", d => sourceColor(d.name));
+
+        legendItems.append("text")
+          .attr("x", 20)
+          .attr("y", 11)
+          .attr("font-size", "11px")
+          .text(d => {
+            const pct = (d.value / total * 100).toFixed(1);
+            let name = d.name;
+            if (name.length > 28) name = name.substring(0, 25) + "...";
+            return `${name} (${pct}%)`;
+          });
       }
 
       function updateAll() {
