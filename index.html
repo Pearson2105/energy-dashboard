@@ -6,82 +6,20 @@
   <title>UK Renewable & Waste Energy by Source (1990–2023)</title>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
-    body {
-      font-family: Arial, Helvetica, sans-serif;
-      margin: 0;
-      background: #f4f7f9;
-      color: #222;
-      padding: 20px;
-    }
-    h1 {
-      text-align: center;
-      margin: 20px 0 8px;
-    }
-    .subtitle {
-      text-align: center;
-      margin-bottom: 30px;
-      color: #555;
-      font-size: 1.1em;
-    }
-    .container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 50px;
-      max-width: 960px;
-      margin: 0 auto;
-    }
-    .chart {
-      background: white;
-      padding: 25px;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-      width: 100%;
-      max-width: 920px;
-      min-height: 500px;
-    }
-    .footer {
-      text-align: center;
-      padding: 40px 0 20px;
-      font-size: 13px;
-      color: #666;
-    }
-    button {
-      padding: 12px 24px;
-      font-size: 16px;
-      margin: 20px auto;
-      display: block;
-      cursor: pointer;
-    }
+    body { font-family: Arial, Helvetica, sans-serif; margin:0; background:#f4f7f9; color:#222; }
+    h1 { text-align:center; margin:20px 0 5px; }
+    .subtitle { text-align:center; margin-bottom:20px; color:#555; }
+    .container { display:flex; flex-wrap:wrap; gap:20px; justify-content:center; padding:20px; }
+    .chart { background:white; padding:15px; border:1px solid #ddd; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.08); min-height:380px; }
+    .footer { text-align:center; padding:20px; font-size:12px; color:#666; }
+    button { padding:10px 20px; font-size:15px; margin:10px; cursor:pointer; }
     .tooltip {
-      position: absolute;
-      visibility: hidden;
-      background: #fff;
-      border: 1px solid #ccc;
-      padding: 10px 14px;
-      border-radius: 6px;
-      box-shadow: 2px 2px 8px rgba(0,0,0,0.2);
-      pointer-events: none;
-      z-index: 1000;
-      font-size: 13px;
-      max-width: 300px;
+      position:absolute; visibility:hidden; background:#fff; border:1px solid #ccc;
+      padding:8px 12px; border-radius:4px; box-shadow:2px 2px 5px rgba(0,0,0,0.2);
+      pointer-events:none; z-index:1000; font-size:13px; max-width:280px;
     }
-    .brush .selection {
-      fill: #ddd;
-      fill-opacity: .3;
-      stroke: #999;
-    }
-    .error {
-      color: red;
-      text-align: center;
-      padding: 20px;
-      font-weight: bold;
-    }
-    .legend text {
-      font-size: 12px;
-      dominant-baseline: middle;
-    }
+    .brush .selection { fill:#ddd; fill-opacity:.3; stroke:#999; }
+    .error { color:red; text-align:center; padding:20px; font-weight:bold; }
   </style>
 </head>
 <body>
@@ -110,6 +48,8 @@
     const tooltip = d3.select("body").append("div").attr("class", "tooltip");
 
     d3.csv("renewables_sources.csv").then(rawData => {
+      console.log("CSV loaded – rows:", rawData.length);
+
       const data = rawData.map(d => {
         const parsed = { Year: +d.Year.trim() };
         Object.keys(d).forEach(key => {
@@ -120,6 +60,8 @@
         return parsed;
       }).filter(d => !isNaN(d.Year));
 
+      console.log("Parsed data sample (first year):", data[0]);
+
       const allKeys = Object.keys(data[0] || {});
       const sourceKeys = allKeys.filter(k => 
         k !== "Year" && 
@@ -129,21 +71,21 @@
         !k.toLowerCase().includes("cross-boundary")
       );
 
-      const totalKey = allKeys.find(k => k.toLowerCase().includes("energy from renewable")) || 
-                       "Energy from renewable & waste sources";
+      console.log("Detected source keys:", sourceKeys);
+
+      // Find total column more flexibly
+      const totalKey = allKeys.find(k => k.toLowerCase().includes("energy from renewable")) || "Energy from renewable & waste sources";
 
       const sourceColor = d3.scaleOrdinal(d3.schemeTableau10).domain(sourceKeys);
 
       function getDisplayData() {
         let disp = {}, title = "";
         if (brushRange) {
-          const start = Math.min(brushRange.start, brushRange.end);
-          const end   = Math.max(brushRange.start, brushRange.end);
-          const years = data.filter(d => d.Year >= start && d.Year <= end);
+          const years = data.filter(d => d.Year >= brushRange.start && d.Year <= brushRange.end);
           if (years.length === 0) years = data;
           sourceKeys.forEach(k => disp[k] = d3.mean(years, row => row[k] || 0));
           disp.Total = d3.mean(years, row => row[totalKey] || 0);
-          title = `${start}–${end} (average)`;
+          title = `${brushRange.start}–${brushRange.end} (average)`;
         } else {
           const y = selectedYear || data[data.length-1]?.Year;
           const row = data.find(d => d.Year === y) || data[data.length-1] || {};
@@ -154,257 +96,123 @@
       }
 
       function updateLineChart() {
-        const margin = {top: 50, right: 60, bottom: 80, left: 80};
-        const width = 900 - margin.left - margin.right;
-        const height = 480 - margin.top - margin.bottom;
+        const margin = {top:30, right:30, bottom:60, left:70};
+        const w = 520 - margin.left - margin.right;
+        const h = 380 - margin.top - margin.bottom;
 
         const svg = d3.select("#line-chart").html("").append("svg")
-          .attr("width", width + margin.left + margin.right)
-          .attr("height", height + margin.top + margin.bottom)
-          .append("g")
-          .attr("transform", `translate(${margin.left},${margin.top})`);
+          .attr("width", w + margin.left + margin.right)
+          .attr("height", h + margin.top + margin.bottom)
+          .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
         const totals = data.map(d => d[totalKey] || 0);
         const maxTotal = d3.max(totals) || 25;
 
-        const x = d3.scaleLinear()
-          .domain(d3.extent(data, d => d.Year))
-          .range([0, width]);
-
-        const y = d3.scaleLinear()
-          .domain([0, maxTotal * 1.05])
-          .range([height, 0]);
+        const x = d3.scaleLinear().domain(d3.extent(data, d=>d.Year)).range([0, w]);
+        const y = d3.scaleLinear().domain([0, maxTotal * 1.05]).range([h, 0]);
 
         svg.append("path")
           .datum(data)
-          .attr("fill", "none")
-          .attr("stroke", "#1f77b4")
-          .attr("stroke-width", 3)
-          .attr("d", d3.line()
-            .x(d => x(d.Year))
-            .y(d => y(d[totalKey] || 0))
-          );
+          .attr("fill", "none").attr("stroke", "#1f77b4").attr("stroke-width", 3)
+          .attr("d", d3.line().x(d=>x(d.Year)).y(d => y(d[totalKey] || 0)));
 
-        svg.selectAll(".dot")
-          .data(data)
-          .join("circle")
-          .attr("cx", d => x(d.Year))
-          .attr("cy", d => y(d[totalKey] || 0))
-          .attr("r", 6)
+        svg.selectAll(".dot").data(data).join("circle")
+          .attr("cx", d=>x(d.Year)).attr("cy", d=>y(d[totalKey] || 0)).attr("r", 5)
           .attr("fill", d => d.Year === selectedYear ? "#ff7f0e" : "#1f77b4")
-          .on("click", (_, d) => {
-            selectedYear = (selectedYear === d.Year) ? null : d.Year;
-            brushRange = null;
-            updateAll();
-          })
-          .on("mouseover", (event, d) => {
-            tooltip.style("visibility", "visible")
-              .html(`Year: ${d.Year}<br>Total: ${(d[totalKey] || 0).toFixed(3)} Mtoe`);
-          })
-          .on("mousemove", event => {
-            tooltip.style("top", (event.pageY - 15) + "px")
-              .style("left", (event.pageX + 15) + "px");
-          })
-          .on("mouseout", () => tooltip.style("visibility", "hidden"));
+          .on("click", (_,d)=>{ selectedYear = (selectedYear===d.Year)?null:d.Year; brushRange=null; updateAll(); })
+          .on("mouseover", (event,d)=>{ tooltip.style("visibility","visible").html(`Year: ${d.Year}<br>Total: ${(d[totalKey]||0).toFixed(3)} Mtoe`); })
+          .on("mousemove", event=>{ tooltip.style("top",(event.pageY-15)+"px").style("left",(event.pageX+15)+"px"); })
+          .on("mouseout", ()=>{ tooltip.style("visibility","hidden"); });
 
-        const brush = d3.brushX()
-          .extent([[0, 0], [width, height]])
-          .on("end", e => {
-            if (!e.selection) brushRange = null;
-            else {
-              const [x0, x1] = e.selection;
-              brushRange = { start: Math.round(x.invert(x0)), end: Math.round(x.invert(x1)) };
-              selectedYear = null;
-            }
-            updateAll();
-          });
+        const brush = d3.brushX().extent([[0,0],[w,h]]).on("end", e=>{
+          if(!e.selection) brushRange = null;
+          else {
+            const [x0,x1] = e.selection;
+            brushRange = {start:Math.round(x.invert(x0)), end:Math.round(x.invert(x1))};
+            selectedYear = null;
+          }
+          updateAll();
+        });
+        svg.append("g").attr("class","brush").call(brush);
 
-        svg.append("g")
-          .attr("class", "brush")
-          .call(brush);
+        svg.append("g").attr("transform",`translate(0,${h})`).call(d3.axisBottom(x).tickFormat(d3.format("d")));
+        svg.append("g").call(d3.axisLeft(y));
 
-        svg.append("g")
-          .attr("transform", `translate(0,${height})`)
-          .call(d3.axisBottom(x).tickFormat(d3.format("d")));
-
-        svg.append("g")
-          .call(d3.axisLeft(y));
-
-        svg.append("text")
-          .attr("x", width / 2)
-          .attr("y", height + 60)
-          .attr("text-anchor", "middle")
-          .text("Year");
-
-        svg.append("text")
-          .attr("transform", "rotate(-90)")
-          .attr("x", -height / 2)
-          .attr("y", -60)
-          .attr("text-anchor", "middle")
-          .text("Total Renewable & Waste Energy (Mtoe)");
+        svg.append("text").attr("x",w/2).attr("y",h+45).attr("text-anchor","middle").text("Year");
+        svg.append("text").attr("transform","rotate(-90)").attr("x",-h/2).attr("y",-55).attr("text-anchor","middle").text("Total Renewable & Waste (Mtoe)");
       }
 
+      // Bar and Pie functions remain similar – just using sourceKeys and totalKey
+      // (copy updateBarChart and updatePieChart from previous version, but replace "Energy from renewable & waste sources" with totalKey)
+
       function updateBarChart() {
-        const { data: disp, title } = getDisplayData();
-        const barData = sourceKeys.map(k => ({ source: k, value: disp[k] || 0 }))
-          .filter(d => d.value > 0)
-          .sort((a, b) => b.value - a.value)
-          .slice(0, 15);
+        const {data:disp, title} = getDisplayData();
+        const barData = sourceKeys.map(k=>({source:k, value:disp[k]||0}))
+          .filter(d=>d.value > 0)
+          .sort((a,b)=>b.value-a.value).slice(0,15);
 
         if (barData.length === 0) {
           d3.select("#bar-chart").html("<p class='error'>No data for selected view</p>");
           return;
         }
 
-        const margin = { top: 100, right: 60, bottom: 80, left: 280 };
-        const width = 900 - margin.left - margin.right;
-        const height = 480 - margin.top - margin.bottom;
+        const margin = {top:40,right:30,bottom:20,left:220};
+        const w = 520 - margin.left - margin.right;
+        const h = 380 - margin.top - margin.bottom;
 
-        const svg = d3.select("#bar-chart").html("")
-          .append("svg")
-          .attr("width", width + margin.left + margin.right)
-          .attr("height", height + margin.top + margin.bottom)
-          .append("g")
-          .attr("transform", `translate(${margin.left},${margin.top})`);
+        const svg = d3.select("#bar-chart").html("").append("svg")
+          .attr("width", w+margin.left+margin.right).attr("height", h+margin.top+margin.bottom)
+          .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
-        const x = d3.scaleLinear()
-          .domain([0, d3.max(barData, d => d.value) * 1.1])
-          .range([0, width]);
+        const x = d3.scaleLinear().domain([0, d3.max(barData,d=>d.value)*1.1]).range([0,w]);
+        const y = d3.scaleBand().domain(barData.map(d=>d.source)).range([0,h]).padding(0.2);
 
-        const y = d3.scaleBand()
-          .domain(barData.map(d => d.source))
-          .range([0, height])
-          .padding(0.2);
+        svg.selectAll(".bar").data(barData).join("rect")
+          .attr("x",0).attr("y",d=>y(d.source)).attr("width",d=>x(d.value)).attr("height",y.bandwidth())
+          .attr("fill", d=>sourceColor(d.source))
+          .on("mouseover",(event,d)=>{tooltip.style("visibility","visible").html(`${d.source}<br>${d.value.toFixed(3)} Mtoe`);})
+          .on("mousemove",event=>{tooltip.style("top",(event.pageY-15)+"px").style("left",(event.pageX+15)+"px");})
+          .on("mouseout",()=>{tooltip.style("visibility","hidden");});
 
-        svg.selectAll(".bar")
-          .data(barData)
-          .join("rect")
-          .attr("x", 0)
-          .attr("y", d => y(d.source))
-          .attr("width", d => x(d.value))
-          .attr("height", y.bandwidth())
-          .attr("fill", d => sourceColor(d.source))
-          .on("mouseover", (event, d) => {
-            tooltip.style("visibility", "visible")
-              .html(`${d.source}<br>${d.value.toFixed(3)} Mtoe`);
-          })
-          .on("mousemove", event => {
-            tooltip.style("top", (event.pageY - 15) + "px")
-              .style("left", (event.pageX + 15) + "px");
-          })
-          .on("mouseout", () => tooltip.style("visibility", "hidden"));
-
-        svg.selectAll(".label")
-          .data(barData)
-          .join("text")
-          .attr("x", d => x(d.value) + 8)
-          .attr("y", d => y(d.source) + y.bandwidth() / 2 + 4)
-          .attr("font-size", "12px")
-          .text(d => d.value.toFixed(3));
+        svg.selectAll(".label").data(barData).join("text")
+          .attr("x",d=>x(d.value)+5).attr("y",d=>y(d.source)+y.bandwidth()/2+4).text(d=>d.value.toFixed(3));
 
         svg.append("g").call(d3.axisLeft(y));
-        svg.append("g")
-          .attr("transform", `translate(0,${height})`)
-          .call(d3.axisBottom(x));
+        svg.append("g").attr("transform",`translate(0,${h})`).call(d3.axisBottom(x));
 
-        // Centered top title
-        svg.append("text")
-          .attr("x", (width + margin.left) / 2 - margin.left / 2)
-          .attr("y", -60)
-          .attr("text-anchor", "middle")
-          .style("font-weight", "bold")
-          .style("font-size", "18px")
-          .text(`Top Sources – ${title} (Total: ${(disp.Total || 0).toFixed(3)} Mtoe)`);
+        svg.append("text").attr("x",w/2).attr("y",-10).attr("text-anchor","middle").style("font-weight","bold")
+          .text(`Top Sources – ${title} (Total: ${(disp.Total||0).toFixed(3)} Mtoe)`);
       }
 
       function updatePieChart() {
-        const { data: disp, title } = getDisplayData();
-        const pieData = sourceKeys
-          .map(k => ({ name: k, value: disp[k] || 0 }))
-          .filter(d => d.value > 0)
-          .sort((a, b) => b.value - a.value);
-
-        const total = pieData.reduce((sum, d) => sum + d.value, 0) || 1;
+        const {data:disp, title} = getDisplayData();
+        const pieData = sourceKeys.map(k=>({name:k, value:disp[k]||0})).filter(d=>d.value>0);
+        const total = pieData.reduce((a,d)=>a+d.value,0) || disp.Total || 1;
 
         if (pieData.length === 0) {
           d3.select("#pie-chart").html("<p class='error'>No data for selected view</p>");
           return;
         }
 
-        const width = 920;
-        const height = 520;
-        const radius = Math.min(width - 300, height) / 2 - 70;
+        const w=420, h=380, r = Math.min(w,h)/2 - 40;
+        const svg = d3.select("#pie-chart").html("").append("svg").attr("width",w).attr("height",h)
+          .append("g").attr("transform",`translate(${w/2},${h/2})`);
 
-        const svg = d3.select("#pie-chart").html("")
-          .append("svg")
-          .attr("width", width)
-          .attr("height", height)
-          .append("g")
-          .attr("transform", `translate(${width / 2 - 120}, ${height / 2})`);
+        const pie = d3.pie().value(d=>d.value);
+        const arc = d3.arc().innerRadius(0).outerRadius(r);
 
-        const pie = d3.pie().value(d => d.value).sort(null);
-        const arc = d3.arc().innerRadius(0).outerRadius(radius);
+        svg.selectAll("path").data(pie(pieData)).join("path")
+          .attr("d",arc).attr("fill",d=>sourceColor(d.data.name))
+          .on("mouseover",(event,d)=>{tooltip.style("visibility","visible").html(`${d.data.name}<br>${d.data.value.toFixed(3)} Mtoe<br>${(d.data.value/total*100).toFixed(1)}%`);})
+          .on("mousemove",event=>{tooltip.style("top",(event.pageY-15)+"px").style("left",(event.pageX+15)+"px");})
+          .on("mouseout",()=>{tooltip.style("visibility","hidden");});
 
-        svg.selectAll("path.slice")
-          .data(pie(pieData))
-          .join("path")
-          .attr("class", "slice")
-          .attr("d", arc)
-          .attr("fill", d => sourceColor(d.data.name))
-          .on("mouseover", function(event, d) {
-            tooltip.style("visibility", "visible")
-              .html(`${d.data.name}<br>${d.data.value.toFixed(3)} Mtoe<br>${(d.data.value / total * 100).toFixed(1)}%`);
-          })
-          .on("mousemove", event => {
-            tooltip.style("top", (event.pageY - 15) + "px")
-              .style("left", (event.pageX + 15) + "px");
-          })
-          .on("mouseout", () => tooltip.style("visibility", "hidden"));
+        svg.selectAll("text").data(pie(pieData)).join("text")
+          .attr("transform",d=>`translate(${arc.centroid(d)})`).attr("text-anchor","middle").attr("font-size","10px")
+          .text(d=>`${(d.data.value/total*100).toFixed(1)}%`);
 
-        // Pie title
-        svg.append("text")
-          .attr("y", -radius - 80)
-          .attr("text-anchor", "middle")
-          .style("font-weight", "bold")
-          .style("font-size", "18px")
-          .text(`Source Shares – ${title} (Total: ${total.toFixed(3)} Mtoe)`);
-
-        // Legend on the right
-        const legend = svg.append("g")
-          .attr("transform", `translate(${radius + 180}, -${height/2 + 40})`)
-          .attr("class", "legend");
-
-        const legendItems = legend.selectAll("g")
-          .data(pieData)
-          .join("g")
-          .attr("transform", (d, i) => `translate(0, ${i * 24})`);
-
-        legendItems.append("rect")
-          .attr("width", 16)
-          .attr("height", 16)
-          .attr("fill", d => sourceColor(d.name));
-
-        legendItems.append("text")
-          .attr("x", 24)
-          .attr("y", 8)
-          .attr("font-size", "12px")
-          .each(function(d) {
-            const pct = (d.value / total * 100).toFixed(1);
-            let name = d.name;
-            if (name.length > 32) name = name.substring(0, 29) + "...";
-            d3.select(this).text(`${name} (${pct}%)`);
-          });
-
-        // Clip legend if too tall
-        svg.append("clipPath")
-          .attr("id", "legend-clip")
-          .append("rect")
-          .attr("width", 300)
-          .attr("height", height - 120)
-          .attr("x", radius + 160)
-          .attr("y", -height/2 + 30);
-
-        legend.attr("clip-path", "url(#legend-clip)");
+        svg.append("text").attr("y",-r-20).attr("text-anchor","middle").style("font-weight","bold")
+          .text(`Source Shares – ${title}`);
       }
 
       function updateAll() {
