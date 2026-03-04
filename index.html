@@ -27,7 +27,7 @@
       border:1px solid #ddd; 
       border-radius:8px; 
       box-shadow:0 4px 12px rgba(0,0,0,0.08); 
-      min-height:420px; 
+      min-height:440px; 
     }
     .footer { text-align:center; padding:20px; font-size:12px; color:#666; }
     button { padding:10px 20px; font-size:15px; margin:10px; cursor:pointer; }
@@ -42,11 +42,15 @@
       pointer-events:none; 
       z-index:1000; 
       font-size:13px; 
-      max-width:280px;
+      max-width:300px;
     }
     .brush .selection { fill:#ddd; fill-opacity:.3; stroke:#999; }
     .error { color:red; text-align:center; padding:20px; font-weight:bold; }
-    .legend text { font-size: 11px; }
+    .legend { font-size: 11px; }
+    .legend text { 
+      font-size: 11px; 
+      dominant-baseline: middle; 
+    }
     .leader-line { fill: none; stroke: #777; stroke-width: 1; opacity: 0.5; }
   </style>
 </head>
@@ -109,11 +113,13 @@
       function getDisplayData() {
         let disp = {}, title = "";
         if (brushRange) {
-          const years = data.filter(d => d.Year >= brushRange.start && d.Year <= brushRange.end);
+          const start = Math.min(brushRange.start, brushRange.end);
+          const end   = Math.max(brushRange.start, brushRange.end);
+          const years = data.filter(d => d.Year >= start && d.Year <= end);
           if (years.length === 0) years = data;
           sourceKeys.forEach(k => disp[k] = d3.mean(years, row => row[k] || 0));
           disp.Total = d3.mean(years, row => row[totalKey] || 0);
-          title = `${brushRange.start}–${brushRange.end} (average)`;
+          title = `${start}–${end} (average)`;
         } else {
           const y = selectedYear || data[data.length-1]?.Year;
           const row = data.find(d => d.Year === y) || data[data.length-1] || {};
@@ -214,7 +220,7 @@
         const pieData = sourceKeys
           .map(k => ({ name: k, value: disp[k] || 0 }))
           .filter(d => d.value > 0)
-          .sort((a, b) => b.value - a.value);  // sort descending for legend
+          .sort((a, b) => b.value - a.value);
 
         const total = pieData.reduce((sum, d) => sum + d.value, 0) || 1;
 
@@ -223,17 +229,17 @@
           return;
         }
 
-        const width = 620;   // wider to fit legend on the right
-        const height = 420;
-        const radius = Math.min(width - 220, height) / 2 - 60;  // leave space for legend
-        const labelRadius = radius + 35;
+        const width = 680;   // wider to comfortably fit legend
+        const height = 460;
+        const radius = Math.min(width - 280, height) / 2 - 60;   // leave space for legend
+        const labelRadius = radius + 40;
 
         const svg = d3.select("#pie-chart").html("")
           .append("svg")
           .attr("width", width)
           .attr("height", height)
           .append("g")
-          .attr("transform", `translate(${width / 2 - 80}, ${height / 2})`);  // shift left to make room
+          .attr("transform", `translate(${width / 2 - 100}, ${height / 2})`);  // center pie, leave right for legend
 
         const pie = d3.pie().value(d => d.value).sort(null);
         const arc = d3.arc().innerRadius(0).outerRadius(radius);
@@ -268,8 +274,8 @@
             const posB = outerArc.centroid(d);
             const midAngle = d.startAngle + (d.endAngle - d.startAngle) / 2;
             const posC = [
-              labelRadius * 1.15 * Math.cos(midAngle - Math.PI / 2),
-              labelRadius * 1.15 * Math.sin(midAngle - Math.PI / 2)
+              labelRadius * 1.18 * Math.cos(midAngle - Math.PI / 2),
+              labelRadius * 1.18 * Math.sin(midAngle - Math.PI / 2)
             ];
             return [posA, posB, posC].map(p => p.join(",")).join(" ");
           });
@@ -277,8 +283,8 @@
         labelGroups.append("text")
           .attr("transform", d => {
             const midAngle = d.startAngle + (d.endAngle - d.startAngle) / 2;
-            const x = labelRadius * 1.15 * Math.cos(midAngle - Math.PI / 2);
-            const y = labelRadius * 1.15 * Math.sin(midAngle - Math.PI / 2);
+            const x = labelRadius * 1.18 * Math.cos(midAngle - Math.PI / 2);
+            const y = labelRadius * 1.18 * Math.sin(midAngle - Math.PI / 2);
             return `translate(${x},${y})`;
           })
           .attr("dy", "0.35em")
@@ -287,25 +293,25 @@
             return midAngleDeg < 180 ? "start" : "end";
           })
           .attr("font-size", "10px")
-          .text(d => `${(d.data.value / total * 100).toFixed(1)}%`);
+          .text(d => (d.data.value / total * 100 > 1) ? `${(d.data.value / total * 100).toFixed(1)}%` : "");
 
         // Title
         svg.append("text")
-          .attr("y", -radius - 50)
+          .attr("y", -radius - 60)
           .attr("text-anchor", "middle")
           .style("font-weight", "bold")
           .attr("font-size", "14px")
           .text(`Source Shares – ${title} (Total: ${total.toFixed(3)} Mtoe)`);
 
-        // Side legend (right side)
-        const legendWidth = 220;
+        // Right-side legend with wrapping text
         const legend = svg.append("g")
-          .attr("transform", `translate(${radius + 100}, -${height/2 + 40})`);
+          .attr("transform", `translate(${radius + 140}, -${height/2 + 30})`)
+          .attr("class", "legend");
 
         const legendItems = legend.selectAll("g")
           .data(pieData)
           .join("g")
-          .attr("transform", (d, i) => `translate(0, ${i * 20})`);
+          .attr("transform", (d, i) => `translate(0, ${i * 22})`);
 
         legendItems.append("rect")
           .attr("width", 14)
@@ -314,14 +320,27 @@
 
         legendItems.append("text")
           .attr("x", 20)
-          .attr("y", 11)
+          .attr("y", 7)
           .attr("font-size", "11px")
-          .text(d => {
+          .each(function(d) {
             const pct = (d.value / total * 100).toFixed(1);
             let name = d.name;
-            if (name.length > 28) name = name.substring(0, 25) + "...";
-            return `${name} (${pct}%)`;
+            const maxChars = 28;
+            if (name.length > maxChars) name = name.substring(0, maxChars - 3) + "...";
+            const text = d3.select(this);
+            text.text(`${name} (${pct}%)`);
           });
+
+        // Make legend scrollable if too tall
+        svg.append("clipPath")
+          .attr("id", "legend-clip")
+          .append("rect")
+          .attr("width", 240)
+          .attr("height", height - 80)
+          .attr("x", radius + 120)
+          .attr("y", -height/2 + 20);
+
+        legend.attr("clip-path", "url(#legend-clip)");
       }
 
       function updateAll() {
