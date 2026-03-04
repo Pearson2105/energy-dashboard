@@ -27,7 +27,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 40px;           /* vertical spacing between charts */
+      gap: 50px;
       max-width: 960px;
       margin: 0 auto;
     }
@@ -43,7 +43,7 @@
     }
     .footer {
       text-align: center;
-      padding: 30px 0 10px;
+      padding: 40px 0 20px;
       font-size: 13px;
       color: #666;
     }
@@ -78,6 +78,10 @@
       padding: 20px;
       font-weight: bold;
     }
+    .legend text {
+      font-size: 11px;
+      dominant-baseline: middle;
+    }
   </style>
 </head>
 <body>
@@ -106,8 +110,6 @@
     const tooltip = d3.select("body").append("div").attr("class", "tooltip");
 
     d3.csv("renewables_sources.csv").then(rawData => {
-      console.log("CSV loaded – rows:", rawData.length);
-
       const data = rawData.map(d => {
         const parsed = { Year: +d.Year.trim() };
         Object.keys(d).forEach(key => {
@@ -118,8 +120,6 @@
         return parsed;
       }).filter(d => !isNaN(d.Year));
 
-      console.log("Parsed data sample (first year):", data[0]);
-
       const allKeys = Object.keys(data[0] || {});
       const sourceKeys = allKeys.filter(k => 
         k !== "Year" && 
@@ -128,8 +128,6 @@
         !k.toLowerCase().includes("percentage") &&
         !k.toLowerCase().includes("cross-boundary")
       );
-
-      console.log("Detected source keys:", sourceKeys);
 
       const totalKey = allKeys.find(k => k.toLowerCase().includes("energy from renewable")) || 
                        "Energy from renewable & waste sources";
@@ -215,10 +213,7 @@
             if (!e.selection) brushRange = null;
             else {
               const [x0, x1] = e.selection;
-              brushRange = {
-                start: Math.round(x.invert(x0)),
-                end: Math.round(x.invert(x1))
-              };
+              brushRange = { start: Math.round(x.invert(x0)), end: Math.round(x.invert(x1)) };
               selectedYear = null;
             }
             updateAll();
@@ -261,7 +256,7 @@
           return;
         }
 
-        const margin = { top: 60, right: 60, bottom: 80, left: 280 };
+        const margin = { top: 80, right: 60, bottom: 80, left: 280 };
         const width = 900 - margin.left - margin.right;
         const height = 480 - margin.top - margin.bottom;
 
@@ -312,12 +307,13 @@
           .attr("transform", `translate(0,${height})`)
           .call(d3.axisBottom(x));
 
+        // Centered top title for bar chart
         svg.append("text")
-          .attr("x", width / 2)
-          .attr("y", -30)
+          .attr("x", (width + margin.left) / 2 - margin.left / 2)
+          .attr("y", -45)
           .attr("text-anchor", "middle")
           .style("font-weight", "bold")
-          .attr("font-size", "16px")
+          .style("font-size", "18px")
           .text(`Top Sources – ${title} (Total: ${(disp.Total || 0).toFixed(3)} Mtoe)`);
       }
 
@@ -337,14 +333,14 @@
 
         const width = 900;
         const height = 520;
-        const radius = Math.min(width, height) / 2 - 100;
+        const radius = Math.min(width - 280, height) / 2 - 70;
 
         const svg = d3.select("#pie-chart").html("")
           .append("svg")
           .attr("width", width)
           .attr("height", height)
           .append("g")
-          .attr("transform", `translate(${width / 2}, ${height / 2})`);
+          .attr("transform", `translate(${width / 2 - 100}, ${height / 2})`);
 
         const pie = d3.pie().value(d => d.value).sort(null);
         const arc = d3.arc().innerRadius(0).outerRadius(radius);
@@ -365,12 +361,50 @@
           })
           .on("mouseout", () => tooltip.style("visibility", "hidden"));
 
+        // Centered top title for pie chart
         svg.append("text")
-          .attr("y", -radius - 60)
+          .attr("y", -radius - 70)
           .attr("text-anchor", "middle")
           .style("font-weight", "bold")
-          .attr("font-size", "18px")
+          .style("font-size", "18px")
           .text(`Source Shares – ${title} (Total: ${total.toFixed(3)} Mtoe)`);
+
+        // Legend on the right with percentages
+        const legend = svg.append("g")
+          .attr("transform", `translate(${radius + 160}, -${height/2 + 30})`)
+          .attr("class", "legend");
+
+        const legendItems = legend.selectAll("g")
+          .data(pieData)
+          .join("g")
+          .attr("transform", (d, i) => `translate(0, ${i * 24})`);
+
+        legendItems.append("rect")
+          .attr("width", 16)
+          .attr("height", 16)
+          .attr("fill", d => sourceColor(d.name));
+
+        legendItems.append("text")
+          .attr("x", 24)
+          .attr("y", 8)
+          .attr("font-size", "12px")
+          .each(function(d) {
+            const pct = (d.value / total * 100).toFixed(1);
+            let name = d.name;
+            if (name.length > 32) name = name.substring(0, 29) + "...";
+            d3.select(this).text(`${name} (${pct}%)`);
+          });
+
+        // Clip legend if too tall
+        svg.append("clipPath")
+          .attr("id", "legend-clip")
+          .append("rect")
+          .attr("width", 280)
+          .attr("height", height - 100)
+          .attr("x", radius + 140)
+          .attr("y", -height/2 + 20);
+
+        legend.attr("clip-path", "url(#legend-clip)");
       }
 
       function updateAll() {
