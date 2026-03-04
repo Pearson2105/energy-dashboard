@@ -25,31 +25,26 @@
 <body>
   <h1>UK Renewable & Waste Energy Consumption by Source (1990–2023)</h1>
   <p class="subtitle">Million tonnes of oil equivalent (Mtoe) • Data: ONS / Ricardo Energy & Environment</p>
-
   <div class="container">
     <div id="line-chart" class="chart"></div>
     <div id="bar-chart" class="chart"></div>
     <div id="pie-chart" class="chart"></div>
   </div>
-
   <div style="text-align:center;">
     <button onclick="resetSelection()">Reset to Latest Year</button>
   </div>
-
   <div class="footer">
-    Interactive D3.js dashboard for SET09123/SET11129 • 
+    Interactive D3.js dashboard for SET09123/SET11129 •
     <a href="https://github.com/pearson2105/energy-dashboard" target="_blank">View source on GitHub</a>
   </div>
 
   <script>
     let selectedYear = null;
     let brushRange = null;
-
     const tooltip = d3.select("body").append("div").attr("class", "tooltip");
 
     d3.csv("renewables_sources.csv").then(rawData => {
       console.log("CSV loaded – rows:", rawData.length);
-
       const data = rawData.map(d => {
         const parsed = { Year: +d.Year.trim() };
         Object.keys(d).forEach(key => {
@@ -63,8 +58,8 @@
       console.log("Parsed data sample (first year):", data[0]);
 
       const allKeys = Object.keys(data[0] || {});
-      const sourceKeys = allKeys.filter(k => 
-        k !== "Year" && 
+      const sourceKeys = allKeys.filter(k =>
+        k !== "Year" &&
         !k.toLowerCase().includes("energy from renewable") &&
         !k.toLowerCase().includes("total energy consumption") &&
         !k.toLowerCase().includes("percentage") &&
@@ -73,9 +68,7 @@
 
       console.log("Detected source keys:", sourceKeys);
 
-      // Find total column more flexibly
       const totalKey = allKeys.find(k => k.toLowerCase().includes("energy from renewable")) || "Energy from renewable & waste sources";
-
       const sourceColor = d3.scaleOrdinal(d3.schemeTableau10).domain(sourceKeys);
 
       function getDisplayData() {
@@ -99,7 +92,6 @@
         const margin = {top:30, right:30, bottom:60, left:70};
         const w = 520 - margin.left - margin.right;
         const h = 380 - margin.top - margin.bottom;
-
         const svg = d3.select("#line-chart").html("").append("svg")
           .attr("width", w + margin.left + margin.right)
           .attr("height", h + margin.top + margin.bottom)
@@ -133,17 +125,13 @@
           }
           updateAll();
         });
-        svg.append("g").attr("class","brush").call(brush);
 
+        svg.append("g").attr("class","brush").call(brush);
         svg.append("g").attr("transform",`translate(0,${h})`).call(d3.axisBottom(x).tickFormat(d3.format("d")));
         svg.append("g").call(d3.axisLeft(y));
-
         svg.append("text").attr("x",w/2).attr("y",h+45).attr("text-anchor","middle").text("Year");
         svg.append("text").attr("transform","rotate(-90)").attr("x",-h/2).attr("y",-55).attr("text-anchor","middle").text("Total Renewable & Waste (Mtoe)");
       }
-
-      // Bar and Pie functions remain similar – just using sourceKeys and totalKey
-      // (copy updateBarChart and updatePieChart from previous version, but replace "Energy from renewable & waste sources" with totalKey)
 
       function updateBarChart() {
         const {data:disp, title} = getDisplayData();
@@ -179,7 +167,6 @@
 
         svg.append("g").call(d3.axisLeft(y));
         svg.append("g").attr("transform",`translate(0,${h})`).call(d3.axisBottom(x));
-
         svg.append("text").attr("x",w/2).attr("y",-10).attr("text-anchor","middle").style("font-weight","bold")
           .text(`Top Sources – ${title} (Total: ${(disp.Total||0).toFixed(3)} Mtoe)`);
       }
@@ -194,25 +181,68 @@
           return;
         }
 
-        const w=420, h=380, r = Math.min(w,h)/2 - 40;
-        const svg = d3.select("#pie-chart").html("").append("svg").attr("width",w).attr("height",h)
-          .append("g").attr("transform",`translate(${w/2},${h/2})`);
+        const width = 580;
+        const height = 380;
+        const radius = 110;
+        const pieCenterX = 140;           // shifted left to make space for legend
 
-        const pie = d3.pie().value(d=>d.value);
-        const arc = d3.arc().innerRadius(0).outerRadius(r);
+        const svg = d3.select("#pie-chart").html("")
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height);
 
-        svg.selectAll("path").data(pie(pieData)).join("path")
-          .attr("d",arc).attr("fill",d=>sourceColor(d.data.name))
-          .on("mouseover",(event,d)=>{tooltip.style("visibility","visible").html(`${d.data.name}<br>${d.data.value.toFixed(3)} Mtoe<br>${(d.data.value/total*100).toFixed(1)}%`);})
-          .on("mousemove",event=>{tooltip.style("top",(event.pageY-15)+"px").style("left",(event.pageX+15)+"px");})
-          .on("mouseout",()=>{tooltip.style("visibility","hidden");});
+        const g = svg.append("g")
+          .attr("transform", `translate(${pieCenterX},${height/2})`);
 
-        svg.selectAll("text").data(pie(pieData)).join("text")
-          .attr("transform",d=>`translate(${arc.centroid(d)})`).attr("text-anchor","middle").attr("font-size","10px")
-          .text(d=>`${(d.data.value/total*100).toFixed(1)}%`);
+        const pie = d3.pie().value(d => d.value);
+        const arc = d3.arc().innerRadius(0).outerRadius(radius);
 
-        svg.append("text").attr("y",-r-20).attr("text-anchor","middle").style("font-weight","bold")
+        // Pie slices (no text inside)
+        g.selectAll("path")
+          .data(pie(pieData))
+          .join("path")
+          .attr("d", arc)
+          .attr("fill", d => sourceColor(d.data.name))
+          .on("mouseover",(event,d)=>{
+            tooltip.style("visibility","visible")
+              .html(`${d.data.name}<br>${d.data.value.toFixed(3)} Mtoe<br>${(d.data.value/total*100).toFixed(1)}%`);
+          })
+          .on("mousemove",event=>{
+            tooltip.style("top",(event.pageY-15)+"px").style("left",(event.pageX+15)+"px");
+          })
+          .on("mouseout",()=>{ tooltip.style("visibility","hidden"); });
+
+        // Title above pie
+        svg.append("text")
+          .attr("x", pieCenterX)
+          .attr("y", 35)
+          .attr("text-anchor", "middle")
+          .style("font-weight", "bold")
           .text(`Source Shares – ${title}`);
+
+        // Legend on the right
+        const legend = svg.append("g")
+          .attr("transform", `translate(${pieCenterX + radius + 60}, ${-radius + 20})`);
+
+        const legendItems = legend.selectAll(".legend-item")
+          .data(pieData)
+          .join("g")
+          .attr("class", "legend-item")
+          .attr("transform", (d,i) => `translate(0, ${i * 22})`);
+
+        legendItems.append("rect")
+          .attr("width", 16)
+          .attr("height", 16)
+          .attr("fill", d => sourceColor(d.name));
+
+        legendItems.append("text")
+          .attr("x", 24)
+          .attr("y", 13)
+          .style("font-size", "13px")
+          .text(d => {
+            const pct = (d.value / total * 100).toFixed(1);
+            return `${d.name} – ${pct}% (${d.value.toFixed(3)} Mtoe)`;
+          });
       }
 
       function updateAll() {
@@ -222,7 +252,6 @@
       }
 
       updateAll();
-
     }).catch(err => {
       console.error("CSV load/parse error:", err);
       document.body.insertAdjacentHTML("beforeend", '<p class="error">Failed to load or parse renewables_sources.csv – check file name, format, and browser console.</p>');
