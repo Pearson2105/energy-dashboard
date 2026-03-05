@@ -35,7 +35,7 @@ h1 {
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     min-height: 380px;
-    width: 560px;          /* fixed width helps with consistent centering */
+    width: 560px;
     box-sizing: border-box;
 }
 .footer {
@@ -72,7 +72,7 @@ button {
     display: flex;
     align-items: flex-start;
     margin-bottom: 8px;
-    font-size: 12px;       /* slightly smaller */
+    font-size: 12px;
 }
 .legend-color {
     width: 14px;
@@ -95,7 +95,7 @@ button {
     stroke-width: 0;
 }
 .axis text, .tick text {
-    font-size: 11px;       /* smaller axis labels */
+    font-size: 11px;
 }
 .y-axis-label {
     font-size: 11px;
@@ -186,7 +186,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
     }
 
     function updateLineChart() {
-        const margin = {top: 45, right: 40, bottom: 55, left: 70}; // adjusted for smaller labels
+        const margin = {top: 45, right: 40, bottom: 55, left: 70};
         const w = 520 - margin.left - margin.right;
         const h = 380 - margin.top - margin.bottom;
 
@@ -271,7 +271,6 @@ d3.csv("renewables_sources.csv").then(rawData => {
             .call(d3.axisBottom(x).tickFormat(d3.format("d")));
         g.append("g").call(d3.axisLeft(y).tickFormat(d => d + " Mtoe"));
 
-        // Smaller titles
         svg.append("text")
             .attr("x", (margin.left + w) / 2)
             .attr("y", 20)
@@ -319,7 +318,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
         const y = d3.scaleBand()
             .domain(barData.map(d => d.source))
             .range([0, h])
-            .padding(0.32);
+            .padding(0.18);   // ← decreased from 0.32 → tighter spacing between bars/labels
 
         g.selectAll("rect")
             .data(barData)
@@ -370,7 +369,6 @@ d3.csv("renewables_sources.csv").then(rawData => {
             .attr("transform", `translate(0,${h})`)
             .call(d3.axisBottom(x));
 
-        // Center title relative to full chart width (approximated as 560px)
         svg.append("text")
             .attr("x", "50%")
             .attr("y", 18)
@@ -390,7 +388,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
         const total = pieData.reduce((a,b) => a + b.value, 0);
         const width = 580;
         const height = 380;
-        const radius = 105; // slightly smaller to fit reduced text
+        const radius = 105;
         const pieCenterX = 140;
 
         const svg = d3.select("#pie-chart")
