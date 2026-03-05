@@ -143,7 +143,7 @@
       padding-right: 6px;
     }
 
-    /* Consistent style for all chart main titles */
+    /* Consistent style for all chart main titles */ 
     .chart-title {
       font-size: 15px;
       font-weight: 700;
@@ -172,19 +172,16 @@
   </div>
 
 <script>
-// ────────────────────────────────────────────────
-// GLOBAL STATE & SHARED VARIABLES
-// ────────────────────────────────────────────────
+
+// global state and shared variables
 let selectedYear = null;
 let brushRange   = null;
 let updateAll    = function(){};
 
 const tooltip = d3.select("body").append("div").attr("class", "tooltip");
 
-// ────────────────────────────────────────────────
-// DATA LOADING & CLEANING
-// Loads CSV, parses years, converts missing/low values to 0, filters invalid rows
-// ────────────────────────────────────────────────
+// data loading and cleaning
+// loads CSV, parses years, converts missing/low values to 0, filters invalid rows
 d3.csv("renewables_sources.csv").then(rawData => {
   console.log("CSV rows loaded:", rawData.length);
 
@@ -222,12 +219,10 @@ d3.csv("renewables_sources.csv").then(rawData => {
 
   const colorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(sourceKeys);
 
-  // ────────────────────────────────────────────────
   // getDisplayData()
-  // Returns values and title for current selection:
+  // returns values and title for current selection:
   // - average over brushed range (if valid)
   // - or single selected/latest year
-  // ────────────────────────────────────────────────
   function getDisplayData() {
     let values = {};
     let title  = "";
@@ -254,11 +249,9 @@ d3.csv("renewables_sources.csv").then(rawData => {
     return { data: values, title };
   }
 
-  // ────────────────────────────────────────────────
   // updateLineChart()
-  // Renders line chart showing total renewable energy over time
-  // Features: brushing for range average, point-click for single year, tooltips, linked updates
-  // ────────────────────────────────────────────────
+  // renders line chart showing total renewable energy over time
+  // features: brushing for range average, point-click for single year, tooltips, linked updates
   function updateLineChart() {
     const margin = {top:50, right:40, bottom:60, left:70};
     const w = 520 - margin.left - margin.right;
@@ -327,7 +320,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
     g.append("g").attr("transform",`translate(0,${h})`).call(d3.axisBottom(x).tickFormat(d3.format("d")));
     g.append("g").call(d3.axisLeft(y).tickFormat(d => d + " Mtoe"));
 
-    // Consistent title (same font/size/bold as other charts)
+    // consistent title 
     svg.append("text")
       .attr("class", "chart-title")
       .attr("x", (margin.left + w)/2)
@@ -345,11 +338,9 @@ d3.csv("renewables_sources.csv").then(rawData => {
             selectedYear ? `Year: ${selectedYear}` : "Latest year");
   }
 
-  // ────────────────────────────────────────────────
   // updateBarChart()
-  // Renders horizontal bar chart of top energy sources
-  // Shows top 15 sources for selected year/range average
-  // ────────────────────────────────────────────────
+  // renders horizontal bar chart of top energy sources
+  // shows top 15 sources for selected year/range average
   function updateBarChart() {
     const disp = getDisplayData();
     const bars = sourceKeys
@@ -420,7 +411,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
 
     g.append("g").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x));
 
-    // Consistent title (same as other charts)
+    // consistent title
     svg.append("text")
       .attr("class", "chart-title")
       .attr("x", "50%")
@@ -428,11 +419,9 @@ d3.csv("renewables_sources.csv").then(rawData => {
       .text(`Top Sources – ${disp.title} (Total: ${disp.data.Total.toFixed(2)} Mtoe)`);
   }
 
-  // ────────────────────────────────────────────────
   // updatePieChart()
-  // Renders pie chart showing source composition
-  // Includes interactive slices + functional legend with wrapping
-  // ────────────────────────────────────────────────
+  // renders pie chart showing source composition
+  // includes interactive slices + functional legend with wrapping
   function updatePieChart() {
     const {data: disp, title} = getDisplayData();
     let pieData = sourceKeys
@@ -469,7 +458,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
         .on("mousemove", event => tooltip.style("top",(event.pageY-15)+"px").style("left",(event.pageX+15)+"px"))
         .on("mouseout", () => tooltip.style("visibility","hidden"));
 
-    // Consistent title style (same size/bold/font as other charts)
+    // consistent title style
     svg.append("text")
       .attr("class", "chart-title")
       .attr("x", pieCenterX)
