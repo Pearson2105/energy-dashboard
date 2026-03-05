@@ -51,7 +51,7 @@
       box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
       padding: 24px;
       width: 580px;
-      min-height: 520px;           /* restored to taller size */
+      min-height: 520px;
       transition: transform 0.18s ease, box-shadow 0.18s ease;
       box-sizing: border-box;
     }
@@ -141,6 +141,14 @@
     .legend-fo {
       overflow-y: auto;
       padding-right: 6px;
+    }
+
+    /* Consistent chart title style */
+    .chart-title {
+      font-size: 15px;
+      font-weight: 700;
+      fill: #1e293b;
+      text-anchor: middle;
     }
   </style>
 </head>
@@ -239,6 +247,9 @@ d3.csv("renewables_sources.csv").then(rawData => {
     return { data: values, title };
   }
 
+  // ────────────────────────────────────────────────
+  // LINE CHART
+  // ────────────────────────────────────────────────
   function updateLineChart() {
     const margin = {top:50, right:40, bottom:60, left:70};
     const w = 520 - margin.left - margin.right;
@@ -307,12 +318,19 @@ d3.csv("renewables_sources.csv").then(rawData => {
     g.append("g").attr("transform",`translate(0,${h})`).call(d3.axisBottom(x).tickFormat(d3.format("d")));
     g.append("g").call(d3.axisLeft(y).tickFormat(d => d + " Mtoe"));
 
-    svg.append("text").attr("x",(margin.left+w)/2).attr("y",28)
-      .attr("text-anchor","middle").style("font-size","15px").style("font-weight",600)
+    // Consistent title style using class
+    svg.append("text")
+      .attr("class", "chart-title")
+      .attr("x", (margin.left + w)/2)
+      .attr("y", 28)
       .text("Total Renewable & Waste Energy");
 
-    svg.append("text").attr("x",(margin.left+w)/2).attr("y",48)
-      .attr("text-anchor","middle").style("font-size","11.5px").style("fill","#64748b")
+    svg.append("text")
+      .attr("x", (margin.left + w)/2)
+      .attr("y", 48)
+      .attr("text-anchor", "middle")
+      .style("font-size", "11.5px")
+      .style("fill", "#64748b")
       .text(brushRange && brushRange.start < brushRange.end ?
             `${brushRange.start}–${brushRange.end} (average)` :
             selectedYear ? `Year: ${selectedYear}` : "Latest year");
@@ -388,10 +406,11 @@ d3.csv("renewables_sources.csv").then(rawData => {
 
     g.append("g").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x));
 
+    // Consistent title style using class
     svg.append("text")
-      .attr("x","50%").attr("y",28)
-      .attr("text-anchor","middle")
-      .style("font-size","13.5px").style("font-weight",600)
+      .attr("class", "chart-title")
+      .attr("x", "50%")
+      .attr("y", 28)
       .text(`Top Sources – ${disp.title} (Total: ${disp.data.Total.toFixed(2)} Mtoe)`);
   }
 
@@ -403,7 +422,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
         .sort((a,b) => b.value - a.value);
     const total = pieData.reduce((a,b) => a + b.value, 0);
     const width = 580;
-    const height = 480;                                 // increased to match taller box
+    const height = 480;
     const radius = 105;
     const pieCenterX = 140;
 
@@ -431,17 +450,15 @@ d3.csv("renewables_sources.csv").then(rawData => {
         .on("mousemove", event => tooltip.style("top",(event.pageY-15)+"px").style("left",(event.pageX+15)+"px"))
         .on("mouseout", () => tooltip.style("visibility","hidden"));
 
+    // Consistent title style using class
     svg.append("text")
-        .attr("x", pieCenterX)
-        .attr("y", 25)
-        .attr("text-anchor","middle")
-        .style("font-size", "13px")
-        .style("font-weight","bold")
-        .text(`Source Shares – ${title}`);
+      .attr("class", "chart-title")
+      .attr("x", pieCenterX)
+      .attr("y", 28)
+      .text(`Source Shares – ${title}`);
 
-    // Legend extended vertically to match taller box
     const legendX = pieCenterX + radius + 40;
-    const legendHeight = 400;                           // increased from 260 → fills height
+    const legendHeight = 400;
     const foreignObject = svg.append("foreignObject")
         .attr("x", legendX)
         .attr("y", 40)
