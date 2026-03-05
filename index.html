@@ -160,20 +160,32 @@ d3.csv("renewables_sources.csv").then(rawData => {
     function getDisplayData() {
         let disp = {};
         let title = "";
-        if (brushRange) {
+        let isAverage = false;
+
+        if (brushRange && brushRange.start < brushRange.end) {
+            // Only accept ranges of 2+ years
             let years = data.filter(d => d.Year >= brushRange.start && d.Year <= brushRange.end);
-            sourceKeys.forEach(k => {
-                disp[k] = d3.mean(years, row => row[k] || 0);
-            });
-            disp.Total = d3.mean(years, row => row[totalKey] || 0);
-            title = `${brushRange.start}–${brushRange.end} (average)`;
-        } else {
-            const year = selectedYear || data[data.length-1].Year;
-            const row = data.find(d => d.Year === year);
-            Object.assign(disp, row);
-            disp.Total = row[totalKey];
-            title = year;
+            if (years.length >= 2) {
+                sourceKeys.forEach(k => {
+                    disp[k] = d3.mean(years, row => row[k] || 0);
+                });
+                disp.Total = d3.mean(years, row => row[totalKey] || 0);
+                title = `${brushRange.start}–${brushRange.end} (average)`;
+                isAverage = true;
+            }
         }
+
+        if (!isAverage) {
+            // Fall back to single year
+            const year = selectedYear || data[data.length - 1].Year;
+            const row = data.find(d => d.Year === year);
+            if (row) {
+                Object.assign(disp, row);
+                disp.Total = row[totalKey] || 0;
+            }
+            title = year.toString();
+        }
+
         return { data: disp, title };
     }
 
@@ -196,7 +208,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
             .range([0, w]);
 
         const y = d3.scaleLinear()
-            .domain([0, d3.max(data, d => d[totalKey]) * 1.08])
+            .domain([0, d3.max(data, d => d[totalKey] || 0) * 1.08])
             .range([h, 0]);
 
         // Grid lines
@@ -209,16 +221,21 @@ d3.csv("renewables_sources.csv").then(rawData => {
             .call(d3.axisLeft(y).ticks(8).tickSize(-w).tickFormat(""));
 
         const brush = d3.brushX()
-            .extent([[0,0],[w,h]])
+            .extent([[0, 0], [w, h]])
             .on("end", event => {
                 if (!event.selection) {
                     brushRange = null;
                 } else {
                     const [x0, x1] = event.selection;
-                    brushRange = {
-                        start: Math.round(x.invert(x0)),
-                        end: Math.round(x.invert(x1))
-                    };
+                    const start = Math.round(x.invert(x0));
+                    const end   = Math.round(x.invert(x1));
+
+                    // Only keep range if it spans at least 2 years
+                    if (start < end) {
+                        brushRange = { start, end };
+                    } else {
+                        brushRange = null; // single year → ignore brush
+                    }
                     selectedYear = null;
                 }
                 updateAll();
@@ -236,10 +253,10 @@ d3.csv("renewables_sources.csv").then(rawData => {
             .attr("stroke-width", 3)
             .attr("d", d3.line()
                 .x(d => x(d.Year))
-                .y(d => y(d[totalKey]))
+                .y(d => y(d[totalKey] || 0))
             );
 
-        // Data points
+        // Points
         const circles = g.selectAll(".data-point")
             .data(data)
             .join("g")
@@ -247,7 +264,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
 
         circles.append("circle")
             .attr("cx", d => x(d.Year))
-            .attr("cy", d => y(d[totalKey]))
+            .attr("cy", d => y(d[totalKey] || 0))
             .attr("r", d => (d.Year === selectedYear) ? 7 : 4.5)
             .attr("fill", d => (d.Year === selectedYear) ? "#ff7f0e" : "#1f77b4")
             .style("cursor", "pointer")
@@ -258,7 +275,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
             })
             .on("mouseover", function(event, d) {
                 tooltip.style("visibility", "visible")
-                    .html(`Year: ${d.Year}<br>Total: ${d[totalKey].toFixed(2)} Mtoe`);
+                    .html(`Year: ${d.Year}<br>Total: ${(d[totalKey] || 0).toFixed(2)} Mtoe`);
                 d3.select(this).transition().duration(100).attr("r", 9);
             })
             .on("mousemove", event => {
@@ -271,7 +288,6 @@ d3.csv("renewables_sources.csv").then(rawData => {
                     .attr("r", d.Year === selectedYear ? 7 : 4.5);
             });
 
-        // Axes
         g.append("g")
             .attr("transform", `translate(0,${h})`)
             .call(d3.axisBottom(x).tickFormat(d3.format("d")));
@@ -279,7 +295,6 @@ d3.csv("renewables_sources.csv").then(rawData => {
         g.append("g")
             .call(d3.axisLeft(y).tickFormat(d => d + " Mtoe"));
 
-        // Titles
         svg.append("text")
             .attr("x", margin.left + w/2)
             .attr("y", 18)
@@ -294,7 +309,9 @@ d3.csv("renewables_sources.csv").then(rawData => {
             .attr("text-anchor", "middle")
             .style("font-size", "13px")
             .style("fill", "#555")
-            .text(brushRange ? `${brushRange.start}–${brushRange.end} (average)` : selectedYear ? `Year: ${selectedYear}` : "Latest year");
+            .text(brushRange && brushRange.start < brushRange.end ? 
+                  `${brushRange.start}–${brushRange.end} (average)` : 
+                  selectedYear ? `Year: ${selectedYear}` : "Latest year");
     }
 
     function updateBarChart() {
@@ -326,7 +343,6 @@ d3.csv("renewables_sources.csv").then(rawData => {
             .range([0, h])
             .padding(0.32);
 
-        // Bars
         svg.selectAll("rect")
             .data(barData)
             .join("rect")
@@ -345,7 +361,6 @@ d3.csv("renewables_sources.csv").then(rawData => {
             })
             .on("mouseout", () => tooltip.style("visibility","hidden"));
 
-        // Wrapped Y-axis labels
         const yAxisGroup = svg.append("g")
             .attr("class", "y-axis")
             .call(d3.axisLeft(y).tickSize(0).tickPadding(6));
@@ -355,9 +370,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
             .each(function() {
                 const text = d3.select(this);
                 const words = text.text().split(/\s+/).reverse();
-                let word;
-                let line = [];
-                let lineNumber = 0;
+                let word, line = [], lineNumber = 0;
                 const lineHeight = 1.35;
                 const y = text.attr("y");
                 const dy = parseFloat(text.attr("dy")) || 0;
@@ -381,7 +394,6 @@ d3.csv("renewables_sources.csv").then(rawData => {
                 }
             });
 
-        // X-axis
         svg.append("g")
             .attr("transform", `translate(0,${h})`)
             .call(d3.axisBottom(x));
