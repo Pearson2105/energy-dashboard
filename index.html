@@ -76,34 +76,26 @@ fill-opacity:.3;
 stroke:#999;
 }
 
-.error{
-color:red;
-text-align:center;
-padding:20px;
-font-weight:bold;
-}
-
-.legend-fo{
-overflow-y:auto;
-}
-
 .legend-item{
 display:flex;
 align-items:flex-start;
-margin-bottom:10px;
+margin-bottom:8px;
 font-size:13px;
-line-height:1.4;
 }
 
 .legend-color{
-width:16px;
-height:16px;
+width:14px;
+height:14px;
 margin-right:8px;
 flex-shrink:0;
 }
 
 .legend-text{
 word-wrap:break-word;
+}
+
+.legend-fo{
+overflow-y:auto;
 }
 </style>
 </head>
@@ -142,17 +134,13 @@ d3.csv("renewables_sources.csv").then(rawData=>{
 
 const data=rawData.map(d=>{
 const parsed={Year:+d.Year.trim()}
-
 Object.keys(d).forEach(key=>{
 const k=key.trim()
 let val=d[key]?.trim()||""
 parsed[k]=(val==="-"||val==="[low]"||val===""||val==null)?0:+val
 })
-
 return parsed
 }).filter(d=>!isNaN(d.Year))
-
-if(!data.length)throw new Error("No valid data")
 
 const allKeys=Object.keys(data[0])
 
@@ -192,11 +180,9 @@ const year=selectedYear||data[data.length-1].Year
 const row=data.find(d=>d.Year===year)
 
 Object.assign(disp,row)
-
 disp.Total=row[totalKey]
 
 title=year
-
 }
 
 return {data:disp,title}
@@ -213,7 +199,8 @@ const svg=d3.select("#line-chart")
 .append("svg")
 .attr("width",w+margin.left+margin.right)
 .attr("height",h+margin.top+margin.bottom)
-.append("g")
+
+const g=svg.append("g")
 .attr("transform",`translate(${margin.left},${margin.top})`)
 
 const x=d3.scaleLinear()
@@ -223,45 +210,6 @@ const x=d3.scaleLinear()
 const y=d3.scaleLinear()
 .domain([0,d3.max(data,d=>d[totalKey])*1.05])
 .range([h,0])
-
-svg.append("path")
-.datum(data)
-.attr("fill","none")
-.attr("stroke","#1f77b4")
-.attr("stroke-width",3)
-.attr("d",d3.line()
-.x(d=>x(d.Year))
-.y(d=>y(d[totalKey]))
-)
-
-svg.selectAll("circle")
-.data(data)
-.join("circle")
-.attr("cx",d=>x(d.Year))
-.attr("cy",d=>y(d[totalKey]))
-.attr("r",d=>d.Year===selectedYear?9:7)
-.attr("fill",d=>d.Year===selectedYear?"#ff7f0e":"#1f77b4")
-.style("cursor","pointer")
-
-.on("click",(event,d)=>{
-selectedYear=(selectedYear===d.Year)?null:d.Year
-brushRange=null
-updateAll()
-})
-
-.on("mouseover",(event,d)=>{
-tooltip.style("visibility","visible")
-.html(`Year: ${d.Year}<br>Total: ${d[totalKey].toFixed(3)} Mtoe`)
-})
-
-.on("mousemove",(event)=>{
-tooltip.style("top",(event.pageY-15)+"px")
-.style("left",(event.pageX+15)+"px")
-})
-
-.on("mouseout",()=>{
-tooltip.style("visibility","hidden")
-})
 
 const brush=d3.brushX()
 .extent([[0,0],[w,h]])
@@ -282,21 +230,68 @@ selectedYear=null
 }
 
 updateAll()
-
 })
 
-const brushGroup=svg.append("g")
+g.append("g")
 .attr("class","brush")
 .call(brush)
 
-brushGroup.select(".overlay")
-.style("pointer-events","none")
+g.append("path")
+.datum(data)
+.attr("fill","none")
+.attr("stroke","#1f77b4")
+.attr("stroke-width",3)
+.attr("d",d3.line()
+.x(d=>x(d.Year))
+.y(d=>y(d[totalKey]))
+)
 
-svg.append("g")
+g.selectAll("circle")
+.data(data)
+.join("circle")
+.attr("cx",d=>x(d.Year))
+.attr("cy",d=>y(d[totalKey]))
+.attr("r",d=>d.Year===selectedYear?6:4)
+.attr("fill",d=>d.Year===selectedYear?"#ff7f0e":"#1f77b4")
+.style("cursor","pointer")
+
+.on("click",(event,d)=>{
+selectedYear=(selectedYear===d.Year)?null:d.Year
+brushRange=null
+updateAll()
+})
+
+.on("mouseover",function(event,d){
+
+tooltip.style("visibility","visible")
+.html(`Year: ${d.Year}<br>Total: ${d[totalKey].toFixed(3)} Mtoe`)
+
+d3.select(this)
+.transition()
+.duration(100)
+.attr("r",8)
+})
+
+.on("mousemove",event=>{
+tooltip.style("top",(event.pageY-15)+"px")
+.style("left",(event.pageX+15)+"px")
+})
+
+.on("mouseout",function(event,d){
+
+tooltip.style("visibility","hidden")
+
+d3.select(this)
+.transition()
+.duration(100)
+.attr("r",d.Year===selectedYear?6:4)
+})
+
+g.append("g")
 .attr("transform",`translate(0,${h})`)
 .call(d3.axisBottom(x).tickFormat(d3.format("d")))
 
-svg.append("g")
+g.append("g")
 .call(d3.axisLeft(y))
 }
 
@@ -309,12 +304,6 @@ const barData=sourceKeys
 .filter(d=>d.value>0)
 .sort((a,b)=>b.value-a.value)
 .slice(0,15)
-
-if(barData.length===0){
-d3.select("#bar-chart")
-.html("<p class='error'>No data for selected view</p>")
-return
-}
 
 const margin={top:40,right:30,bottom:20,left:220}
 const w=520-margin.left-margin.right
@@ -346,6 +335,20 @@ svg.selectAll("rect")
 .attr("height",y.bandwidth())
 .attr("fill",d=>sourceColor(d.source))
 
+.on("mouseover",(event,d)=>{
+tooltip.style("visibility","visible")
+.html(`${d.source}<br>${d.value.toFixed(3)} Mtoe`)
+})
+
+.on("mousemove",event=>{
+tooltip.style("top",(event.pageY-15)+"px")
+.style("left",(event.pageX+15)+"px")
+})
+
+.on("mouseout",()=>{
+tooltip.style("visibility","hidden")
+})
+
 svg.append("g").call(d3.axisLeft(y))
 
 svg.append("g")
@@ -368,6 +371,7 @@ const {data:disp,title}=getDisplayData()
 let pieData=sourceKeys
 .map(k=>({name:k,value:disp[k]||0}))
 .filter(d=>d.value>0)
+.sort((a,b)=>b.value-a.value)
 
 const total=pieData.reduce((a,b)=>a+b.value,0)
 
@@ -394,6 +398,20 @@ g.selectAll("path")
 .attr("d",arc)
 .attr("fill",d=>sourceColor(d.data.name))
 
+.on("mouseover",(event,d)=>{
+tooltip.style("visibility","visible")
+.html(`${d.data.name}<br>${d.data.value.toFixed(3)} Mtoe<br>${(d.data.value/total*100).toFixed(1)}%`)
+})
+
+.on("mousemove",event=>{
+tooltip.style("top",(event.pageY-15)+"px")
+.style("left",(event.pageX+15)+"px")
+})
+
+.on("mouseout",()=>{
+tooltip.style("visibility","hidden")
+})
+
 svg.append("text")
 .attr("x",pieCenterX)
 .attr("y",35)
@@ -401,6 +419,34 @@ svg.append("text")
 .style("font-weight","bold")
 .text(`Source Shares – ${title}`)
 
+const legendX=pieCenterX+radius+40
+const legendHeight=280
+
+const foreignObject=svg.append("foreignObject")
+.attr("x",legendX)
+.attr("y",50)
+.attr("width",260)
+.attr("height",legendHeight)
+
+const legendDiv=foreignObject.append("xhtml:div")
+.style("height",legendHeight+"px")
+.attr("class","legend-fo")
+
+pieData.forEach(d=>{
+
+const pct=(d.value/total*100).toFixed(1)
+
+const item=legendDiv.append("div")
+.attr("class","legend-item")
+
+item.append("div")
+.attr("class","legend-color")
+.style("background-color",sourceColor(d.name))
+
+item.append("div")
+.attr("class","legend-text")
+.html(`${d.name} – ${pct}% (${d.value.toFixed(3)} Mtoe)`)
+})
 }
 
 updateAll=function(){
