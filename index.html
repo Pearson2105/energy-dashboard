@@ -5,467 +5,454 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UK Renewable & Waste Energy by Source (1990–2023)</title>
 <script src="https://d3js.org/d3.v7.min.js"></script>
-
 <style>
 body{
-font-family:Arial,Helvetica,sans-serif;
-margin:0;
-background:#f4f7f9;
-color:#222;
+    font-family:Arial,Helvetica,sans-serif;
+    margin:0;
+    background:#f4f7f9;
+    color:#222;
 }
-
 h1{
-text-align:center;
-margin:20px 0 5px;
+    text-align:center;
+    margin:20px 0 5px;
 }
-
 .subtitle{
-text-align:center;
-margin-bottom:20px;
-color:#555;
+    text-align:center;
+    margin-bottom:20px;
+    color:#555;
 }
-
 .container{
-display:flex;
-flex-wrap:wrap;
-gap:20px;
-justify-content:center;
-padding:20px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:20px;
+    justify-content:center;
+    padding:20px;
 }
-
 .chart{
-background:white;
-padding:15px;
-border:1px solid #ddd;
-border-radius:8px;
-box-shadow:0 4px 12px rgba(0,0,0,0.08);
-min-height:380px;
+    background:white;
+    padding:15px;
+    border:1px solid #ddd;
+    border-radius:8px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.08);
+    min-height:380px;
 }
-
 .footer{
-text-align:center;
-padding:20px;
-font-size:12px;
-color:#666;
+    text-align:center;
+    padding:20px;
+    font-size:12px;
+    color:#666;
 }
-
 button{
-padding:10px 20px;
-font-size:15px;
-margin:10px;
-cursor:pointer;
+    padding:10px 20px;
+    font-size:15px;
+    margin:10px;
+    cursor:pointer;
 }
-
 .tooltip{
-position:absolute;
-visibility:hidden;
-background:#fff;
-border:1px solid #ccc;
-padding:8px 12px;
-border-radius:4px;
-box-shadow:2px 2px 5px rgba(0,0,0,0.2);
-pointer-events:none;
-z-index:1000;
-font-size:13px;
-max-width:280px;
+    position:absolute;
+    visibility:hidden;
+    background:#fff;
+    border:1px solid #ccc;
+    padding:8px 12px;
+    border-radius:4px;
+    box-shadow:2px 2px 5px rgba(0,0,0,0.2);
+    pointer-events:none;
+    z-index:1000;
+    font-size:13px;
+    max-width:280px;
 }
-
 .brush .selection{
-fill:#ddd;
-fill-opacity:.3;
-stroke:#999;
+    fill:#ddd;
+    fill-opacity:.3;
+    stroke:#999;
 }
-
 .legend-item{
-display:flex;
-align-items:flex-start;
-margin-bottom:8px;
-font-size:13px;
+    display:flex;
+    align-items:flex-start;
+    margin-bottom:8px;
+    font-size:13px;
 }
-
 .legend-color{
-width:14px;
-height:14px;
-margin-right:8px;
-flex-shrink:0;
+    width:14px;
+    height:14px;
+    margin-right:8px;
+    flex-shrink:0;
 }
-
 .legend-text{
-word-wrap:break-word;
+    word-wrap:break-word;
 }
-
 .legend-fo{
-overflow-y:auto;
+    overflow-y:auto;
+}
+.grid line {
+    stroke: #e0e0e0;
+    stroke-opacity: 0.7;
+    shape-rendering: crispEdges;
+}
+.grid path {
+    stroke-width: 0;
+}
+.annotation-text {
+    font-size: 11px;
+    font-weight: bold;
+    fill: #d62728;
+    text-anchor: middle;
+    pointer-events: none;
 }
 </style>
 </head>
-
 <body>
-
 <h1>UK Renewable & Waste Energy Consumption by Source (1990–2023)</h1>
 <p class="subtitle">Million tonnes of oil equivalent (Mtoe) • Data: ONS / Ricardo Energy & Environment</p>
-
 <div class="container">
-<div id="line-chart" class="chart"></div>
-<div id="bar-chart" class="chart"></div>
-<div id="pie-chart" class="chart"></div>
+    <div id="line-chart" class="chart"></div>
+    <div id="bar-chart" class="chart"></div>
+    <div id="pie-chart" class="chart"></div>
 </div>
-
 <div style="text-align:center;">
-<button onclick="resetSelection()">Reset to Latest Year</button>
+    <button onclick="resetSelection()">Reset to Latest Year</button>
 </div>
-
 <div class="footer">
-Interactive D3.js dashboard for SET09123/SET11129 •
-<a href="https://github.com/pearson2105/energy-dashboard" target="_blank">View source on GitHub</a>
+    Interactive D3.js dashboard for SET09123/SET11129 •
+    <a href="https://github.com/pearson2105/energy-dashboard" target="_blank">View source on GitHub</a>
 </div>
 
 <script>
+let selectedYear = null;
+let brushRange = null;
+let updateAll = function(){};
 
-let selectedYear=null
-let brushRange=null
-let updateAll=function(){}
+const tooltip = d3.select("body")
+    .append("div")
+    .attr("class","tooltip");
 
-const tooltip=d3.select("body")
-.append("div")
-.attr("class","tooltip")
+d3.csv("renewables_sources.csv").then(rawData => {
+    const data = rawData.map(d => {
+        const parsed = { Year: +d.Year.trim() };
+        Object.keys(d).forEach(key => {
+            const k = key.trim();
+            let val = d[key]?.trim() || "";
+            parsed[k] = (val === "-" || val === "[low]" || val === "" || val == null) ? 0 : +val;
+        });
+        return parsed;
+    }).filter(d => !isNaN(d.Year));
 
-d3.csv("renewables_sources.csv").then(rawData=>{
+    const allKeys = Object.keys(data[0]);
+    const sourceKeys = allKeys.filter(k => 
+        k !== "Year" &&
+        !k.toLowerCase().includes("energy from renewable") &&
+        !k.toLowerCase().includes("total energy consumption") &&
+        !k.toLowerCase().includes("percentage") &&
+        !k.toLowerCase().includes("cross-boundary")
+    );
+    const totalKey = allKeys.find(k => k.toLowerCase().includes("energy from renewable"));
 
-const data=rawData.map(d=>{
-const parsed={Year:+d.Year.trim()}
-Object.keys(d).forEach(key=>{
-const k=key.trim()
-let val=d[key]?.trim()||""
-parsed[k]=(val==="-"||val==="[low]"||val===""||val==null)?0:+val
-})
-return parsed
-}).filter(d=>!isNaN(d.Year))
+    const sourceColor = d3.scaleOrdinal(d3.schemeTableau10)
+        .domain(sourceKeys);
 
-const allKeys=Object.keys(data[0])
+    function getDisplayData() {
+        let disp = {};
+        let title = "";
+        if (brushRange) {
+            let years = data.filter(d => d.Year >= brushRange.start && d.Year <= brushRange.end);
+            sourceKeys.forEach(k => {
+                disp[k] = d3.mean(years, row => row[k] || 0);
+            });
+            disp.Total = d3.mean(years, row => row[totalKey] || 0);
+            title = `${brushRange.start}–${brushRange.end} (average)`;
+        } else {
+            const year = selectedYear || data[data.length-1].Year;
+            const row = data.find(d => d.Year === year);
+            Object.assign(disp, row);
+            disp.Total = row[totalKey];
+            title = year;
+        }
+        return { data: disp, title };
+    }
 
-const sourceKeys=allKeys.filter(k=>
-k!=="Year" &&
-!k.toLowerCase().includes("energy from renewable") &&
-!k.toLowerCase().includes("total energy consumption") &&
-!k.toLowerCase().includes("percentage") &&
-!k.toLowerCase().includes("cross-boundary")
-)
+    function updateLineChart() {
+        const margin = {top: 50, right: 40, bottom: 60, left: 80};
+        const w = 520 - margin.left - margin.right;
+        const h = 380 - margin.top - margin.bottom;
 
-const totalKey=allKeys.find(k=>k.toLowerCase().includes("energy from renewable"))
+        const svg = d3.select("#line-chart")
+            .html("")
+            .append("svg")
+            .attr("width", w + margin.left + margin.right)
+            .attr("height", h + margin.top + margin.bottom);
 
-const sourceColor=d3.scaleOrdinal(d3.schemeTableau10)
-.domain(sourceKeys)
+        const g = svg.append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
 
-function getDisplayData(){
+        const x = d3.scaleLinear()
+            .domain(d3.extent(data, d => d.Year))
+            .range([0, w]);
 
-let disp={}
-let title=""
+        const y = d3.scaleLinear()
+            .domain([0, d3.max(data, d => d[totalKey]) * 1.08])
+            .range([h, 0]);
 
-if(brushRange){
+        // Grid lines
+        g.append("g")
+            .attr("class", "grid")
+            .attr("transform", `translate(0,${h})`)
+            .call(d3.axisBottom(x).ticks(10).tickSize(-h).tickFormat(""));
+        g.append("g")
+            .attr("class", "grid")
+            .call(d3.axisLeft(y).ticks(8).tickSize(-w).tickFormat(""));
 
-let years=data.filter(d=>d.Year>=brushRange.start && d.Year<=brushRange.end)
+        const brush = d3.brushX()
+            .extent([[0,0],[w,h]])
+            .on("end", event => {
+                if (!event.selection) {
+                    brushRange = null;
+                } else {
+                    const [x0, x1] = event.selection;
+                    brushRange = {
+                        start: Math.round(x.invert(x0)),
+                        end: Math.round(x.invert(x1))
+                    };
+                    selectedYear = null;
+                }
+                updateAll();
+            });
 
-sourceKeys.forEach(k=>{
-disp[k]=d3.mean(years,row=>row[k]||0)
-})
+        g.append("g")
+            .attr("class", "brush")
+            .call(brush);
 
-disp.Total=d3.mean(years,row=>row[totalKey]||0)
+        // Main line
+        g.append("path")
+            .datum(data)
+            .attr("fill", "none")
+            .attr("stroke", "#1f77b4")
+            .attr("stroke-width", 3)
+            .attr("d", d3.line()
+                .x(d => x(d.Year))
+                .y(d => y(d[totalKey]))
+            );
 
-title=`${brushRange.start}–${brushRange.end} (average)`
+        // Points + annotations
+        const circles = g.selectAll(".data-point")
+            .data(data)
+            .join("g")
+            .attr("class", "data-point");
 
-}else{
+        circles.append("circle")
+            .attr("cx", d => x(d.Year))
+            .attr("cy", d => y(d[totalKey]))
+            .attr("r", d => (d.Year === selectedYear) ? 7 : 4.5)
+            .attr("fill", d => (d.Year === selectedYear) ? "#ff7f0e" : "#1f77b4")
+            .style("cursor", "pointer")
+            .on("click", function(event, d) {
+                selectedYear = (selectedYear === d.Year) ? null : d.Year;
+                brushRange = null;
+                updateAll();
+            })
+            .on("mouseover", function(event, d) {
+                tooltip.style("visibility", "visible")
+                    .html(`Year: ${d.Year}<br>Total: ${d[totalKey].toFixed(2)} Mtoe`);
+                d3.select(this).transition().duration(100).attr("r", 9);
+            })
+            .on("mousemove", event => {
+                tooltip.style("top", (event.pageY - 15) + "px")
+                    .style("left", (event.pageX + 15) + "px");
+            })
+            .on("mouseout", function(event, d) {
+                tooltip.style("visibility", "hidden");
+                d3.select(this).transition().duration(100)
+                    .attr("r", d.Year === selectedYear ? 7 : 4.5);
+            });
 
-const year=selectedYear||data[data.length-1].Year
-const row=data.find(d=>d.Year===year)
+        // Annotations: value label on selected point
+        if (selectedYear) {
+            const selected = data.find(d => d.Year === selectedYear);
+            if (selected) {
+                g.append("text")
+                    .attr("class", "annotation-text")
+                    .attr("x", x(selected.Year))
+                    .attr("y", y(selected[totalKey]) - 18)
+                    .text(`${selected[totalKey].toFixed(1)}`)
+                    .append("tspan")
+                    .attr("x", x(selected.Year))
+                    .attr("dy", "1.2em")
+                    .text(selected.Year);
+            }
+        }
 
-Object.assign(disp,row)
-disp.Total=row[totalKey]
+        // X-axis
+        g.append("g")
+            .attr("transform", `translate(0,${h})`)
+            .call(d3.axisBottom(x).tickFormat(d3.format("d")));
 
-title=year
+        // Y-axis
+        g.append("g")
+            .call(d3.axisLeft(y).tickFormat(d => d + " Mtoe"));
+
+        // Chart title inside SVG
+        svg.append("text")
+            .attr("x", margin.left + w/2)
+            .attr("y", 18)
+            .attr("text-anchor", "middle")
+            .style("font-size", "15px")
+            .style("font-weight", "bold")
+            .text("Total Renewable & Waste Energy");
+
+        svg.append("text")
+            .attr("x", margin.left + w/2)
+            .attr("y", 38)
+            .attr("text-anchor", "middle")
+            .style("font-size", "13px")
+            .style("fill", "#555")
+            .text(brushRange ? `${brushRange.start}–${brushRange.end} (average)` : selectedYear ? `Year: ${selectedYear}` : "Latest year");
+    }
+
+    function updateBarChart() {
+        const {data: disp, title} = getDisplayData();
+        const barData = sourceKeys
+            .map(k => ({source: k, value: disp[k] || 0}))
+            .filter(d => d.value > 0)
+            .sort((a,b) => b.value - a.value)
+            .slice(0,15);
+
+        const margin = {top:40,right:30,bottom:20,left:220};
+        const w = 520 - margin.left - margin.right;
+        const h = 380 - margin.top - margin.bottom;
+
+        const svg = d3.select("#bar-chart")
+            .html("")
+            .append("svg")
+            .attr("width", w + margin.left + margin.right)
+            .attr("height", h + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const x = d3.scaleLinear()
+            .domain([0, d3.max(barData, d => d.value) * 1.1])
+            .range([0, w]);
+
+        const y = d3.scaleBand()
+            .domain(barData.map(d => d.source))
+            .range([0, h])
+            .padding(0.25);
+
+        svg.selectAll("rect")
+            .data(barData)
+            .join("rect")
+            .attr("x", 0)
+            .attr("y", d => y(d.source))
+            .attr("width", d => x(d.value))
+            .attr("height", y.bandwidth())
+            .attr("fill", d => sourceColor(d.source))
+            .on("mouseover", (event,d) => {
+                tooltip.style("visibility","visible")
+                    .html(`${d.source}<br>${d.value.toFixed(2)} Mtoe`);
+            })
+            .on("mousemove", event => {
+                tooltip.style("top",(event.pageY-15)+"px")
+                    .style("left",(event.pageX+15)+"px");
+            })
+            .on("mouseout", () => tooltip.style("visibility","hidden"));
+
+        svg.append("g").call(d3.axisLeft(y));
+        svg.append("g")
+            .attr("transform", `translate(0,${h})`)
+            .call(d3.axisBottom(x));
+
+        svg.append("text")
+            .attr("x", w/2)
+            .attr("y", -10)
+            .attr("text-anchor","middle")
+            .style("font-weight","bold")
+            .text(`Top Sources – ${title} (Total: ${disp.Total.toFixed(2)} Mtoe)`);
+    }
+
+    function updatePieChart() {
+        const {data: disp, title} = getDisplayData();
+        let pieData = sourceKeys
+            .map(k => ({name: k, value: disp[k] || 0}))
+            .filter(d => d.value > 0)
+            .sort((a,b) => b.value - a.value);
+
+        const total = pieData.reduce((a,b) => a + b.value, 0);
+        const width = 580;
+        const height = 380;
+        const radius = 110;
+        const pieCenterX = 140;
+
+        const svg = d3.select("#pie-chart")
+            .html("")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+        const g = svg.append("g")
+            .attr("transform", `translate(${pieCenterX},${height/2})`);
+
+        const pie = d3.pie().value(d => d.value);
+        const arc = d3.arc().innerRadius(0).outerRadius(radius);
+
+        g.selectAll("path")
+            .data(pie(pieData))
+            .join("path")
+            .attr("d", arc)
+            .attr("fill", d => sourceColor(d.data.name))
+            .on("mouseover", (event,d) => {
+                tooltip.style("visibility","visible")
+                    .html(`${d.data.name}<br>${d.data.value.toFixed(2)} Mtoe<br>${(d.data.value/total*100).toFixed(1)}%`);
+            })
+            .on("mousemove", event => {
+                tooltip.style("top",(event.pageY-15)+"px")
+                    .style("left",(event.pageX+15)+"px");
+            })
+            .on("mouseout", () => tooltip.style("visibility","hidden"));
+
+        svg.append("text")
+            .attr("x", pieCenterX)
+            .attr("y", 35)
+            .attr("text-anchor","middle")
+            .style("font-weight","bold")
+            .text(`Source Shares – ${title}`);
+
+        const legendX = pieCenterX + radius + 40;
+        const legendHeight = 280;
+        const foreignObject = svg.append("foreignObject")
+            .attr("x", legendX)
+            .attr("y", 50)
+            .attr("width", 260)
+            .attr("height", legendHeight);
+
+        const legendDiv = foreignObject.append("xhtml:div")
+            .style("height", legendHeight + "px")
+            .attr("class", "legend-fo");
+
+        pieData.forEach(d => {
+            const pct = (d.value / total * 100).toFixed(1);
+            const item = legendDiv.append("div")
+                .attr("class", "legend-item");
+            item.append("div")
+                .attr("class", "legend-color")
+                .style("background-color", sourceColor(d.name));
+            item.append("div")
+                .attr("class", "legend-text")
+                .html(`${d.name} – ${pct}% (${d.value.toFixed(2)} Mtoe)`);
+        });
+    }
+
+    updateAll = function() {
+        updateLineChart();
+        updateBarChart();
+        updatePieChart();
+    };
+
+    updateAll();
+});
+
+function resetSelection() {
+    selectedYear = null;
+    brushRange = null;
+    updateAll();
 }
-
-return {data:disp,title}
-}
-
-function updateLineChart(){
-
-const margin={top:30,right:30,bottom:60,left:70}
-const w=520-margin.left-margin.right
-const h=380-margin.top-margin.bottom
-
-const svg=d3.select("#line-chart")
-.html("")
-.append("svg")
-.attr("width",w+margin.left+margin.right)
-.attr("height",h+margin.top+margin.bottom)
-
-const g=svg.append("g")
-.attr("transform",`translate(${margin.left},${margin.top})`)
-
-const x=d3.scaleLinear()
-.domain(d3.extent(data,d=>d.Year))
-.range([0,w])
-
-const y=d3.scaleLinear()
-.domain([0,d3.max(data,d=>d[totalKey])*1.05])
-.range([h,0])
-
-const brush=d3.brushX()
-.extent([[0,0],[w,h]])
-.on("end",event=>{
-
-if(!event.selection){
-brushRange=null
-}else{
-
-const [x0,x1]=event.selection
-
-brushRange={
-start:Math.round(x.invert(x0)),
-end:Math.round(x.invert(x1))
-}
-
-selectedYear=null
-}
-
-updateAll()
-})
-
-g.append("g")
-.attr("class","brush")
-.call(brush)
-
-g.append("path")
-.datum(data)
-.attr("fill","none")
-.attr("stroke","#1f77b4")
-.attr("stroke-width",3)
-.attr("d",d3.line()
-.x(d=>x(d.Year))
-.y(d=>y(d[totalKey]))
-)
-
-g.selectAll("circle")
-.data(data)
-.join("circle")
-.attr("cx",d=>x(d.Year))
-.attr("cy",d=>y(d[totalKey]))
-.attr("r",d=>d.Year===selectedYear?6:4)
-.attr("fill",d=>d.Year===selectedYear?"#ff7f0e":"#1f77b4")
-.style("cursor","pointer")
-
-.on("click",(event,d)=>{
-selectedYear=(selectedYear===d.Year)?null:d.Year
-brushRange=null
-updateAll()
-})
-
-.on("mouseover",function(event,d){
-
-tooltip.style("visibility","visible")
-.html(`Year: ${d.Year}<br>Total: ${d[totalKey].toFixed(3)} Mtoe`)
-
-d3.select(this)
-.transition()
-.duration(100)
-.attr("r",8)
-})
-
-.on("mousemove",event=>{
-tooltip.style("top",(event.pageY-15)+"px")
-.style("left",(event.pageX+15)+"px")
-})
-
-.on("mouseout",function(event,d){
-
-tooltip.style("visibility","hidden")
-
-d3.select(this)
-.transition()
-.duration(100)
-.attr("r",d.Year===selectedYear?6:4)
-})
-
-g.append("g")
-.attr("transform",`translate(0,${h})`)
-.call(d3.axisBottom(x).tickFormat(d3.format("d")))
-
-g.append("g")
-.call(d3.axisLeft(y))
-}
-
-function updateBarChart(){
-
-const {data:disp,title}=getDisplayData()
-
-const barData=sourceKeys
-.map(k=>({source:k,value:disp[k]||0}))
-.filter(d=>d.value>0)
-.sort((a,b)=>b.value-a.value)
-.slice(0,15)
-
-const margin={top:40,right:30,bottom:20,left:220}
-const w=520-margin.left-margin.right
-const h=380-margin.top-margin.bottom
-
-const svg=d3.select("#bar-chart")
-.html("")
-.append("svg")
-.attr("width",w+margin.left+margin.right)
-.attr("height",h+margin.top+margin.bottom)
-.append("g")
-.attr("transform",`translate(${margin.left},${margin.top})`)
-
-const x=d3.scaleLinear()
-.domain([0,d3.max(barData,d=>d.value)*1.1])
-.range([0,w])
-
-const y=d3.scaleBand()
-.domain(barData.map(d=>d.source))
-.range([0,h])
-.padding(0.25)
-
-svg.selectAll("rect")
-.data(barData)
-.join("rect")
-.attr("x",0)
-.attr("y",d=>y(d.source))
-.attr("width",d=>x(d.value))
-.attr("height",y.bandwidth())
-.attr("fill",d=>sourceColor(d.source))
-
-.on("mouseover",(event,d)=>{
-tooltip.style("visibility","visible")
-.html(`${d.source}<br>${d.value.toFixed(3)} Mtoe`)
-})
-
-.on("mousemove",event=>{
-tooltip.style("top",(event.pageY-15)+"px")
-.style("left",(event.pageX+15)+"px")
-})
-
-.on("mouseout",()=>{
-tooltip.style("visibility","hidden")
-})
-
-svg.append("g").call(d3.axisLeft(y))
-
-svg.append("g")
-.attr("transform",`translate(0,${h})`)
-.call(d3.axisBottom(x))
-
-svg.append("text")
-.attr("x",w/2)
-.attr("y",-10)
-.attr("text-anchor","middle")
-.style("font-weight","bold")
-.text(`Top Sources – ${title} (Total: ${(disp.Total).toFixed(3)} Mtoe)`)
-
-}
-
-function updatePieChart(){
-
-const {data:disp,title}=getDisplayData()
-
-let pieData=sourceKeys
-.map(k=>({name:k,value:disp[k]||0}))
-.filter(d=>d.value>0)
-.sort((a,b)=>b.value-a.value)
-
-const total=pieData.reduce((a,b)=>a+b.value,0)
-
-const width=580
-const height=380
-const radius=110
-const pieCenterX=140
-
-const svg=d3.select("#pie-chart")
-.html("")
-.append("svg")
-.attr("width",width)
-.attr("height",height)
-
-const g=svg.append("g")
-.attr("transform",`translate(${pieCenterX},${height/2})`)
-
-const pie=d3.pie().value(d=>d.value)
-const arc=d3.arc().innerRadius(0).outerRadius(radius)
-
-g.selectAll("path")
-.data(pie(pieData))
-.join("path")
-.attr("d",arc)
-.attr("fill",d=>sourceColor(d.data.name))
-
-.on("mouseover",(event,d)=>{
-tooltip.style("visibility","visible")
-.html(`${d.data.name}<br>${d.data.value.toFixed(3)} Mtoe<br>${(d.data.value/total*100).toFixed(1)}%`)
-})
-
-.on("mousemove",event=>{
-tooltip.style("top",(event.pageY-15)+"px")
-.style("left",(event.pageX+15)+"px")
-})
-
-.on("mouseout",()=>{
-tooltip.style("visibility","hidden")
-})
-
-svg.append("text")
-.attr("x",pieCenterX)
-.attr("y",35)
-.attr("text-anchor","middle")
-.style("font-weight","bold")
-.text(`Source Shares – ${title}`)
-
-const legendX=pieCenterX+radius+40
-const legendHeight=280
-
-const foreignObject=svg.append("foreignObject")
-.attr("x",legendX)
-.attr("y",50)
-.attr("width",260)
-.attr("height",legendHeight)
-
-const legendDiv=foreignObject.append("xhtml:div")
-.style("height",legendHeight+"px")
-.attr("class","legend-fo")
-
-pieData.forEach(d=>{
-
-const pct=(d.value/total*100).toFixed(1)
-
-const item=legendDiv.append("div")
-.attr("class","legend-item")
-
-item.append("div")
-.attr("class","legend-color")
-.style("background-color",sourceColor(d.name))
-
-item.append("div")
-.attr("class","legend-text")
-.html(`${d.name} – ${pct}% (${d.value.toFixed(3)} Mtoe)`)
-})
-}
-
-updateAll=function(){
-updateLineChart()
-updateBarChart()
-updatePieChart()
-}
-
-updateAll()
-
-})
-
-function resetSelection(){
-selectedYear=null
-brushRange=null
-updateAll()
-}
-
 </script>
-
 </body>
 </html>
