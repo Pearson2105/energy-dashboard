@@ -239,7 +239,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
                 .y(d => y(d[totalKey]))
             );
 
-        // Points
+        // Data points
         const circles = g.selectAll(".data-point")
             .data(data)
             .join("g")
@@ -271,16 +271,15 @@ d3.csv("renewables_sources.csv").then(rawData => {
                     .attr("r", d.Year === selectedYear ? 7 : 4.5);
             });
 
-        // X-axis
+        // Axes
         g.append("g")
             .attr("transform", `translate(0,${h})`)
             .call(d3.axisBottom(x).tickFormat(d3.format("d")));
 
-        // Y-axis
         g.append("g")
             .call(d3.axisLeft(y).tickFormat(d => d + " Mtoe"));
 
-        // Chart title inside SVG
+        // Titles
         svg.append("text")
             .attr("x", margin.left + w/2)
             .attr("y", 18)
@@ -346,7 +345,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
             })
             .on("mouseout", () => tooltip.style("visibility","hidden"));
 
-        // Y-axis with text wrapping
+        // Wrapped Y-axis labels
         const yAxisGroup = svg.append("g")
             .attr("class", "y-axis")
             .call(d3.axisLeft(y).tickSize(0).tickPadding(6));
@@ -359,8 +358,8 @@ d3.csv("renewables_sources.csv").then(rawData => {
                 let word;
                 let line = [];
                 let lineNumber = 0;
-                const lineHeight = 1.35; // ems
-                const yPos = text.attr("y");
+                const lineHeight = 1.35;
+                const y = text.attr("y");
                 const dy = parseFloat(text.attr("dy")) || 0;
 
                 text.text(null);
@@ -375,7 +374,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
                         lineNumber++;
                         text.append("tspan")
                             .attr("x", -6)
-                            .attr("y", yPos)
+                            .attr("y", y)
                             .attr("dy", `${lineNumber * lineHeight}em`)
                             .text(word);
                     }
