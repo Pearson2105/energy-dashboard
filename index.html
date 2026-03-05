@@ -121,9 +121,10 @@
       display: flex;
       align-items: flex-start;
       margin-bottom: 10px;
-      font-size: 12.5px;
-      line-height: 1.4;
+      font-size: 12px;              /* slightly smaller → helps wrapping */
+      line-height: 1.38;
     }
+
     .legend-color {
       width: 16px;
       height: 16px;
@@ -131,10 +132,15 @@
       border-radius: 4px;
       flex-shrink: 0;
     }
+
     .legend-text {
-      word-break: break-word;
+      flex: 1;
+      word-break: break-word;       /* main force break */
+      overflow-wrap: break-word;    /* preferred modern name */
       hyphens: auto;
+      white-space: normal;
     }
+
     .legend-fo {
       overflow-y: auto;
       padding-right: 8px;
@@ -240,7 +246,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
   }
 
   // ────────────────────────────────────────────────
-  // LINE CHART – total trend + brush + point selection
+  // LINE CHART
   // ────────────────────────────────────────────────
   function updateLineChart() {
     const margin = {top:50, right:40, bottom:60, left:70};
@@ -322,7 +328,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
   }
 
   // ────────────────────────────────────────────────
-  // BAR CHART – top sources (horizontal bars)
+  // BAR CHART
   // ────────────────────────────────────────────────
   function updateBarChart() {
     const disp = getDisplayData();
@@ -402,7 +408,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
   }
 
   // ────────────────────────────────────────────────
-  // PIE CHART + wrapped legend
+  // PIE CHART + legend with improved text wrapping
   // ────────────────────────────────────────────────
   function updatePieChart() {
     const disp = getDisplayData();
@@ -443,22 +449,22 @@ d3.csv("renewables_sources.csv").then(rawData => {
       .style("font-size","14px").style("font-weight",600)
       .text(`Source Shares – ${disp.title}`);
 
-    // ────────────────────────────────────────────────
-    // Legend with text wrapping for long names
-    // ────────────────────────────────────────────────
-    const legX = cx + r + 60;
+    // Legend with strong wrapping
+    const legX = cx + r + 50;
     const legH = 360;
+    const legWidth = 300;   // increased from 280
+
     const fo = svg.append("foreignObject")
       .attr("x", legX)
       .attr("y", 50)
-      .attr("width", 280)
+      .attr("width", legWidth)
       .attr("height", legH);
 
     const leg = fo.append("xhtml:div")
       .style("height", legH + "px")
       .attr("class", "legend-fo")
-      .style("font-size", "12.5px")
-      .style("line-height", "1.4");
+      .style("font-size", "12px")           // slightly smaller helps
+      .style("line-height", "1.38");
 
     slices.forEach(d => {
       const pct = (d.value / total * 100).toFixed(1);
@@ -468,14 +474,14 @@ d3.csv("renewables_sources.csv").then(rawData => {
         .attr("class", "legend-color")
         .style("background", colorScale(d.name));
 
-      const textDiv = item.append("div")
+      item.append("div")
         .attr("class", "legend-text")
         .style("flex", "1")
         .style("word-break", "break-word")
-        .style("hyphens", "auto");
-
-      // Simple CSS-based wrapping + percentage bold
-      textDiv.html(`${d.name} <strong>– ${pct}%</strong> (${d.value.toFixed(2)} Mtoe)`);
+        .style("overflow-wrap", "break-word")
+        .style("hyphens", "auto")
+        .style("white-space", "normal")
+        .html(`${d.name} <strong>– ${pct}%</strong> (${d.value.toFixed(2)} Mtoe)`);
     });
   }
 
@@ -488,8 +494,8 @@ d3.csv("renewables_sources.csv").then(rawData => {
   updateAll();
 
 }).catch(error => {
-  console.error("Error loading CSV:", error);
-  alert("Could not load renewables_sources.csv\n\nCheck:\n1. File is in the same folder\n2. Name is exactly 'renewables_sources.csv'\n3. Open page via local server (not double-click)");
+  console.error("CSV load error:", error);
+  alert("Could not load renewables_sources.csv\nCheck file name/location and use local server.");
 });
 
 function resetSelection() {
