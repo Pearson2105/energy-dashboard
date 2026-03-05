@@ -24,17 +24,17 @@ h1 {
 .container {
     display: flex;
     flex-wrap: wrap;
-    gap: 20px;
+    gap: 24px;
     justify-content: center;
-    padding: 20px;
+    padding: 24px;
 }
 .chart {
     background: white;
-    padding: 15px;
+    padding: 20px;
     border: 1px solid #ddd;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    min-height: 380px;
+    min-height: 480px;           /* increased vertical size */
     width: 560px;
     box-sizing: border-box;
 }
@@ -99,7 +99,7 @@ button {
 }
 .y-axis-label {
     font-size: 10.5px;
-    line-height: 1.25;
+    line-height: 1.28;
 }
 </style>
 </head>
@@ -186,9 +186,9 @@ d3.csv("renewables_sources.csv").then(rawData => {
     }
 
     function updateLineChart() {
-        const margin = {top: 45, right: 40, bottom: 55, left: 70};
+        const margin = {top: 50, right: 40, bottom: 60, left: 70};
         const w = 520 - margin.left - margin.right;
-        const h = 380 - margin.top - margin.bottom;
+        const h = 480 - margin.top - margin.bottom;  // increased plotting height
 
         const svg = d3.select("#line-chart")
             .html("")
@@ -273,7 +273,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
 
         svg.append("text")
             .attr("x", (margin.left + w) / 2)
-            .attr("y", 20)
+            .attr("y", 24)
             .attr("text-anchor", "middle")
             .style("font-size", "13px")
             .style("font-weight", "bold")
@@ -281,7 +281,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
 
         svg.append("text")
             .attr("x", (margin.left + w) / 2)
-            .attr("y", 36)
+            .attr("y", 42)
             .attr("text-anchor", "middle")
             .style("font-size", "11px")
             .style("fill", "#555")
@@ -298,9 +298,9 @@ d3.csv("renewables_sources.csv").then(rawData => {
             .sort((a,b) => b.value - a.value)
             .slice(0,15);
 
-        const margin = {top: 40, right: 30, bottom: 20, left: 200}; // ← moved left: was 240 → now 200
+        const margin = {top: 50, right: 30, bottom: 30, left: 200}; // slightly more top space
         const innerWidth = 520 - margin.left - margin.right;
-        const h = 380 - margin.top - margin.bottom;
+        const h = 480 - margin.top - margin.bottom;  // increased plotting height
 
         const svg = d3.select("#bar-chart")
             .html("")
@@ -318,7 +318,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
         const y = d3.scaleBand()
             .domain(barData.map(d => d.source))
             .range([0, h])
-            .padding(0.18);
+            .padding(0.24);   // ← increased from 0.18 → more vertical spacing between bars/labels
 
         g.selectAll("rect")
             .data(barData)
@@ -339,7 +339,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
             .attr("class", "y-axis")
             .call(d3.axisLeft(y)
                 .tickSize(0)
-                .tickPadding(14)   // ← increased spacing between labels and bars (was ~8)
+                .tickPadding(16)   // ← more space between labels and bars
             );
 
         yAxisGroup.selectAll("text")
@@ -353,7 +353,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
                 const words = fullText.split(/\s+/).reverse();
                 let line = [];
                 let lineNumber = 0;
-                const lineHeight = 1.25;
+                const lineHeight = 1.28;
                 const maxWidth = 190;
 
                 let tspan = text.append("tspan")
@@ -377,7 +377,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
                 }
 
                 if (lineNumber > 0) {
-                    const shift = -((lineNumber) * (lineHeight - 0.9) / 2) + "em";
+                    const shift = -((lineNumber) * (lineHeight - 0.92) / 2) + "em";
                     text.attr("dy", shift);
                 }
             });
@@ -388,7 +388,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
 
         svg.append("text")
             .attr("x", "50%")
-            .attr("y", 18)
+            .attr("y", 22)
             .attr("text-anchor", "middle")
             .style("font-size", "12px")
             .style("font-weight", "bold")
@@ -403,10 +403,9 @@ d3.csv("renewables_sources.csv").then(rawData => {
             .sort((a,b) => b.value - a.value);
 
         const total = pieData.reduce((a,b) => a + b.value, 0);
-        const width = 580;
-        const height = 380;
-        const radius = 105;
-        const pieCenterX = 140;
+        const height = 480;  // increased
+        const radius = 115;  // slightly larger pie to use space
+        const pieCenterX = 150;
 
         const svg = d3.select("#pie-chart")
             .html("")
@@ -434,23 +433,24 @@ d3.csv("renewables_sources.csv").then(rawData => {
 
         svg.append("text")
             .attr("x", pieCenterX)
-            .attr("y", 25)
+            .attr("y", 30)
             .attr("text-anchor","middle")
             .style("font-size", "13px")
             .style("font-weight","bold")
             .text(`Source Shares – ${title}`);
 
-        const legendX = pieCenterX + radius + 40;
-        const legendHeight = 260;
+        const legendX = pieCenterX + radius + 50;
+        const legendHeight = 340; // more vertical room for legend
         const foreignObject = svg.append("foreignObject")
             .attr("x", legendX)
-            .attr("y", 40)
+            .attr("y", 50)
             .attr("width", 260)
             .attr("height", legendHeight);
 
         const legendDiv = foreignObject.append("xhtml:div")
             .style("height", legendHeight + "px")
-            .attr("class", "legend-fo");
+            .attr("class", "legend-fo")
+            .style("overflow-y", "auto");
 
         pieData.forEach(d => {
             const pct = (d.value / total * 100).toFixed(1);
