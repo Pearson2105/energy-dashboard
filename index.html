@@ -49,9 +49,9 @@
       border-radius: 16px;
       border: 1px solid #e2e8f0;
       box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
-      padding: 24px;
+      padding: 20px;
       width: 580px;
-      min-height: 520px;
+      min-height: 420px;           /* decreased from 520px → roughly matches legend height */
       transition: transform 0.18s ease, box-shadow 0.18s ease;
       box-sizing: border-box;
     }
@@ -213,9 +213,6 @@ d3.csv("renewables_sources.csv").then(rawData => {
 
   const colorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(sourceKeys);
 
-  // ────────────────────────────────────────────────
-  // Prepare displayed values (single year or average)
-  // ────────────────────────────────────────────────
   function getDisplayData() {
     let values = {};
     let title  = "";
@@ -243,12 +240,12 @@ d3.csv("renewables_sources.csv").then(rawData => {
   }
 
   // ────────────────────────────────────────────────
-  // LINE CHART – total trend + brush + point selection
+  // LINE CHART
   // ────────────────────────────────────────────────
   function updateLineChart() {
-    const margin = {top:50, right:40, bottom:60, left:70};
+    const margin = {top:45, right:40, bottom:55, left:70};
     const w = 520 - margin.left - margin.right;
-    const h = 480 - margin.top - margin.bottom;
+    const h = 380 - margin.top - margin.bottom;           // matched to pie legend height
 
     const svg = d3.select("#line-chart").html("")
       .append("svg").attr("width","100%").attr("height", h + margin.top + margin.bottom);
@@ -313,20 +310,17 @@ d3.csv("renewables_sources.csv").then(rawData => {
     g.append("g").attr("transform",`translate(0,${h})`).call(d3.axisBottom(x).tickFormat(d3.format("d")));
     g.append("g").call(d3.axisLeft(y).tickFormat(d => d + " Mtoe"));
 
-    svg.append("text").attr("x",(margin.left+w)/2).attr("y",28)
+    svg.append("text").attr("x",(margin.left+w)/2).attr("y",26)
       .attr("text-anchor","middle").style("font-size","15px").style("font-weight",600)
       .text("Total Renewable & Waste Energy");
 
-    svg.append("text").attr("x",(margin.left+w)/2).attr("y",48)
+    svg.append("text").attr("x",(margin.left+w)/2).attr("y",44)
       .attr("text-anchor","middle").style("font-size","11.5px").style("fill","#64748b")
       .text(brushRange && brushRange.start < brushRange.end ?
             `${brushRange.start}–${brushRange.end} (average)` :
             selectedYear ? `Year: ${selectedYear}` : "Latest year");
   }
 
-  // ────────────────────────────────────────────────
-  // BAR CHART – top sources (horizontal)
-  // ────────────────────────────────────────────────
   function updateBarChart() {
     const disp = getDisplayData();
     const bars = sourceKeys
@@ -335,9 +329,9 @@ d3.csv("renewables_sources.csv").then(rawData => {
       .sort((a,b)=>b.value-a.value)
       .slice(0,15);
 
-    const margin = {top:50, right:32, bottom:36, left:200};
+    const margin = {top:45, right:32, bottom:30, left:200};
     const iw = 520 - margin.left - margin.right;
-    const ih = 480 - margin.top - margin.bottom;
+    const ih = 380 - margin.top - margin.bottom;           // aligned with pie
 
     const svg = d3.select("#bar-chart").html("")
       .append("svg").attr("width","100%").attr("height",ih+margin.top+margin.bottom);
@@ -398,14 +392,14 @@ d3.csv("renewables_sources.csv").then(rawData => {
     g.append("g").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x));
 
     svg.append("text")
-      .attr("x","50%").attr("y",28)
+      .attr("x","50%").attr("y",24)
       .attr("text-anchor","middle")
       .style("font-size","13.5px").style("font-weight",600)
       .text(`Top Sources – ${disp.title} (Total: ${disp.data.Total.toFixed(2)} Mtoe)`);
   }
 
   // ────────────────────────────────────────────────
-  // PIE CHART – using the functional legend version you provided
+  // PIE CHART – with the functional legend version
   // ────────────────────────────────────────────────
   function updatePieChart() {
     const {data: disp, title} = getDisplayData();
@@ -415,7 +409,7 @@ d3.csv("renewables_sources.csv").then(rawData => {
         .sort((a,b) => b.value - a.value);
     const total = pieData.reduce((a,b) => a + b.value, 0);
     const width = 580;
-    const height = 380;
+    const height = 380;                                 // matched height
     const radius = 105;
     const pieCenterX = 140;
 
@@ -451,9 +445,6 @@ d3.csv("renewables_sources.csv").then(rawData => {
         .style("font-weight","bold")
         .text(`Source Shares – ${title}`);
 
-    // ────────────────────────────────────────────────
-    // Functional legend (as provided – no cutting reported earlier)
-    // ────────────────────────────────────────────────
     const legendX = pieCenterX + radius + 40;
     const legendHeight = 260;
     const foreignObject = svg.append("foreignObject")
