@@ -122,6 +122,7 @@
       align-items: flex-start;
       margin-bottom: 10px;
       font-size: 12.5px;
+      line-height: 1.4;
     }
     .legend-color {
       width: 16px;
@@ -132,6 +133,7 @@
     }
     .legend-text {
       word-break: break-word;
+      hyphens: auto;
     }
     .legend-fo {
       overflow-y: auto;
@@ -155,7 +157,6 @@
   </div>
 
   <div class="footer">
-    Interactive D3.js dashboard • Academic project SET09123 / SET11129<br>
     <a href="https://github.com/pearson2105/energy-dashboard" target="_blank" style="color:#10b981;">View source on GitHub</a>
   </div>
 
@@ -170,21 +171,20 @@ let updateAll    = function(){};
 const tooltip = d3.select("body").append("div").attr("class", "tooltip");
 
 // ────────────────────────────────────────────────
-// Load data with better error handling
+// Load & clean data
 // ────────────────────────────────────────────────
-d3.csv("renewables_sources.csv").then(function(rawData) {
-  console.log("CSV loaded successfully. Rows:", rawData.length);
+d3.csv("renewables_sources.csv").then(rawData => {
+  console.log("CSV rows loaded:", rawData.length);
 
-  // Parse and clean data
-  const data = rawData.map(function(d) {
+  const data = rawData.map(d => {
     const row = { Year: +d.Year.trim() };
-    Object.keys(d).forEach(function(k) {
+    Object.keys(d).forEach(k => {
       const key = k.trim();
       const val = (d[key] || "").trim();
       row[key] = (val === "" || val === "-" || val === "[low]") ? 0 : +val;
     });
     return row;
-  }).filter(function(d) { return !isNaN(d.Year); });
+  }).filter(d => !isNaN(d.Year));
 
   if (data.length === 0) {
     console.error("No valid data rows after filtering");
@@ -192,7 +192,7 @@ d3.csv("renewables_sources.csv").then(function(rawData) {
   }
 
   const allKeys    = Object.keys(data[0]);
-  const sourceKeys = allKeys.filter(function(k) {
+  const sourceKeys = allKeys.filter(k => {
     const lk = k.toLowerCase();
     return k !== "Year" &&
            !lk.includes("energy from renewable") &&
@@ -201,22 +201,17 @@ d3.csv("renewables_sources.csv").then(function(rawData) {
            !lk.includes("cross-boundary");
   });
 
-  const totalKey = allKeys.find(function(k) {
-    return k.toLowerCase().includes("energy from renewable");
-  });
+  const totalKey = allKeys.find(k => k.toLowerCase().includes("energy from renewable"));
 
   if (!totalKey) {
-    console.error("Could not find total renewable column");
+    console.error("Total renewable column not found");
     return;
   }
-
-  console.log("Total column found:", totalKey);
-  console.log("Source columns:", sourceKeys);
 
   const colorScale = d3.scaleOrdinal(d3.schemeTableau10).domain(sourceKeys);
 
   // ────────────────────────────────────────────────
-  // Prepare displayed values (single year or average)
+  // Get data for current view (single year or average)
   // ────────────────────────────────────────────────
   function getDisplayData() {
     let values = {};
@@ -224,34 +219,28 @@ d3.csv("renewables_sources.csv").then(function(rawData) {
     let isAvg  = false;
 
     if (brushRange && brushRange.start < brushRange.end) {
-      let years = data.filter(function(d) {
-        return d.Year >= brushRange.start && d.Year <= brushRange.end;
-      });
+      let years = data.filter(d => d.Year >= brushRange.start && d.Year <= brushRange.end);
       if (years.length >= 2) {
-        sourceKeys.forEach(function(k) {
-          values[k] = d3.mean(years, function(r) { return r[k] || 0; });
-        });
-        values.Total = d3.mean(years, function(r) { return r[totalKey] || 0; });
-        title = brushRange.start + "–" + brushRange.end + " (average)";
+        sourceKeys.forEach(k => values[k] = d3.mean(years, r => r[k] || 0));
+        values.Total = d3.mean(years, r => r[totalKey] || 0);
+        title = `${brushRange.start}–${brushRange.end} (average)`;
         isAvg = true;
       }
     }
 
     if (!isAvg) {
       const yr  = selectedYear || data[data.length-1].Year;
-      const row = data.find(function(d) { return d.Year === yr; });
-      if (row) {
-        Object.assign(values, row);
-        values.Total = row[totalKey] || 0;
-      }
+      const row = data.find(d => d.Year === yr);
+      if (row) Object.assign(values, row);
+      values.Total = row?.[totalKey] || 0;
       title = yr + "";
     }
 
-    return { data: values, title: title };
+    return { data: values, title };
   }
 
   // ────────────────────────────────────────────────
-  // LINE CHART
+  // LINE CHART – total trend + brush + point selection
   // ────────────────────────────────────────────────
   function updateLineChart() {
     const margin = {top:50, right:40, bottom:60, left:70};
@@ -259,38 +248,27 @@ d3.csv("renewables_sources.csv").then(function(rawData) {
     const h = 480 - margin.top - margin.bottom;
 
     const svg = d3.select("#line-chart").html("")
-      .append("svg")
-      .attr("width", "100%")
-      .attr("height", h + margin.top + margin.bottom);
+      .append("svg").attr("width","100%").attr("height", h + margin.top + margin.bottom);
 
-    const g = svg.append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
+    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
 
-    const x = d3.scaleLinear()
-      .domain(d3.extent(data, d => d.Year))
-      .range([0, w]);
+    const x = d3.scaleLinear().domain(d3.extent(data, d => d.Year)).range([0,w]);
+    const y = d3.scaleLinear().domain([0, d3.max(data, d => d[totalKey] || 0) * 1.08]).range([h,0]);
 
-    const y = d3.scaleLinear()
-      .domain([0, d3.max(data, d => d[totalKey] || 0) * 1.08])
-      .range([h, 0]);
-
-    // grid
     g.append("g").attr("class","grid").attr("transform",`translate(0,${h})`)
       .call(d3.axisBottom(x).ticks(10).tickSize(-h).tickFormat(""));
     g.append("g").attr("class","grid")
       .call(d3.axisLeft(y).ticks(8).tickSize(-w).tickFormat(""));
 
-    // brush
-    const brush = d3.brushX()
-      .extent([[0,0],[w,h]])
-      .on("end", function(event) {
+    const brush = d3.brushX().extent([[0,0],[w,h]])
+      .on("end", event => {
         if (!event.selection) {
           brushRange = null;
         } else {
           const [x0, x1] = event.selection;
           const s = Math.round(x.invert(x0));
           const e = Math.round(x.invert(x1));
-          brushRange = (s < e) ? {start: s, end: e} : null;
+          brushRange = (s < e) ? {start:s, end:e} : null;
           selectedYear = null;
         }
         updateAll();
@@ -298,83 +276,60 @@ d3.csv("renewables_sources.csv").then(function(rawData) {
 
     g.append("g").attr("class","brush").call(brush);
 
-    // line
     g.append("path")
       .datum(data)
-      .attr("fill", "none")
-      .attr("stroke", "#10b981")
-      .attr("stroke-width", 3.2)
-      .attr("d", d3.line()
-        .x(d => x(d.Year))
-        .y(d => y(d[totalKey] || 0))
-      );
+      .attr("fill","none")
+      .attr("stroke","#10b981")
+      .attr("stroke-width",3.2)
+      .attr("d", d3.line().x(d=>x(d.Year)).y(d=>y(d[totalKey]||0)));
 
-    // points
     g.selectAll(".pt")
       .data(data)
       .join("circle")
-      .attr("cx", d => x(d.Year))
-      .attr("cy", d => y(d[totalKey] || 0))
+      .attr("cx", d=>x(d.Year))
+      .attr("cy", d=>y(d[totalKey]||0))
       .attr("r", d => d.Year === selectedYear ? 7 : 4.5)
       .attr("fill", d => d.Year === selectedYear ? "#f59e0b" : "#10b981")
-      .style("cursor", "pointer")
-      .on("click", function(event, d) {
+      .style("cursor","pointer")
+      .on("click", (_,d) => {
         selectedYear = selectedYear === d.Year ? null : d.Year;
         brushRange = null;
         updateAll();
       })
-      .on("mouseover", function(event, d) {
-        tooltip.style("visibility", "visible")
-          .html(`<strong>${d.Year}</strong><br>Total: ${(d[totalKey] || 0).toFixed(2)} Mtoe`);
-        d3.select(this).transition().duration(80).attr("r", 9);
+      .on("mouseover", (_,d) => {
+        tooltip.style("visibility","visible")
+          .html(`<strong>${d.Year}</strong><br>Total: ${(d[totalKey]||0).toFixed(2)} Mtoe`);
+        d3.select(this).transition().duration(80).attr("r",9);
       })
-      .on("mousemove", function(event) {
-        tooltip.style("top", (event.pageY - 18) + "px")
-               .style("left", (event.pageX + 18) + "px");
-      })
-      .on("mouseout", function(event, d) {
-        tooltip.style("visibility", "hidden");
-        d3.select(this).transition().duration(80)
-          .attr("r", d.Year === selectedYear ? 7 : 4.5);
+      .on("mousemove", e => tooltip.style("top",(e.pageY-18)+"px").style("left",(e.pageX+18)+"px"))
+      .on("mouseout", (_,d) => {
+        tooltip.style("visibility","hidden");
+        d3.select(this).transition().duration(80).attr("r", d.Year === selectedYear ? 7 : 4.5);
       });
 
-    // axes
-    g.append("g")
-      .attr("transform", `translate(0,${h})`)
-      .call(d3.axisBottom(x).tickFormat(d3.format("d")));
+    g.append("g").attr("transform",`translate(0,${h})`).call(d3.axisBottom(x).tickFormat(d3.format("d")));
+    g.append("g").call(d3.axisLeft(y).tickFormat(d => d + " Mtoe"));
 
-    g.append("g")
-      .call(d3.axisLeft(y).tickFormat(d => d + " Mtoe"));
-
-    // titles
-    svg.append("text")
-      .attr("x", (margin.left + w)/2)
-      .attr("y", 28)
-      .attr("text-anchor", "middle")
-      .style("font-size", "15px")
-      .style("font-weight", "600")
+    svg.append("text").attr("x",(margin.left+w)/2).attr("y",28)
+      .attr("text-anchor","middle").style("font-size","15px").style("font-weight",600)
       .text("Total Renewable & Waste Energy");
 
-    svg.append("text")
-      .attr("x", (margin.left + w)/2)
-      .attr("y", 48)
-      .attr("text-anchor", "middle")
-      .style("font-size", "11.5px")
-      .style("fill", "#64748b")
+    svg.append("text").attr("x",(margin.left+w)/2).attr("y",48)
+      .attr("text-anchor","middle").style("font-size","11.5px").style("fill","#64748b")
       .text(brushRange && brushRange.start < brushRange.end ?
             `${brushRange.start}–${brushRange.end} (average)` :
             selectedYear ? `Year: ${selectedYear}` : "Latest year");
   }
 
   // ────────────────────────────────────────────────
-  // BAR CHART (horizontal)
+  // BAR CHART – top sources (horizontal bars)
   // ────────────────────────────────────────────────
   function updateBarChart() {
     const disp = getDisplayData();
     const bars = sourceKeys
-      .map(k => ({source: k, value: disp.data[k] || 0}))
-      .filter(d => d.value > 0)
-      .sort((a,b) => b.value - a.value)
+      .map(k => ({source:k, value:disp.data[k]||0}))
+      .filter(d=>d.value>0)
+      .sort((a,b)=>b.value-a.value)
       .slice(0,15);
 
     const margin = {top:50, right:32, bottom:36, left:200};
@@ -382,90 +337,72 @@ d3.csv("renewables_sources.csv").then(function(rawData) {
     const ih = 480 - margin.top - margin.bottom;
 
     const svg = d3.select("#bar-chart").html("")
-      .append("svg")
-      .attr("width", "100%")
-      .attr("height", ih + margin.top + margin.bottom);
+      .append("svg").attr("width","100%").attr("height",ih+margin.top+margin.bottom);
 
-    const g = svg.append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
+    const g = svg.append("g").attr("transform",`translate(${margin.left},${margin.top})`);
 
-    const x = d3.scaleLinear()
-      .domain([0, d3.max(bars, d => d.value) * 1.12])
-      .range([0, iw]);
-
-    const y = d3.scaleBand()
-      .domain(bars.map(d => d.source))
-      .range([0, ih])
-      .padding(0.24);
+    const x = d3.scaleLinear().domain([0, d3.max(bars,d=>d.value)*1.12]).range([0,iw]);
+    const y = d3.scaleBand().domain(bars.map(d=>d.source)).range([0,ih]).padding(0.24);
 
     g.selectAll("rect")
       .data(bars)
       .join("rect")
-      .attr("x", 0)
-      .attr("y", d => y(d.source))
-      .attr("width", d => x(d.value))
-      .attr("height", y.bandwidth())
-      .attr("fill", d => colorScale(d.source))
-      .attr("rx", 4)
-      .on("mouseover", function(event, d) {
-        tooltip.style("visibility", "visible")
+      .attr("x",0)
+      .attr("y",d=>y(d.source))
+      .attr("width",d=>x(d.value))
+      .attr("height",y.bandwidth())
+      .attr("fill",d=>colorScale(d.source))
+      .attr("rx",4)
+      .on("mouseover",(e,d)=>{
+        tooltip.style("visibility","visible")
           .html(`${d.source}<br><strong>${d.value.toFixed(2)} Mtoe</strong>`);
       })
-      .on("mousemove", function(event) {
-        tooltip.style("top", (event.pageY - 18) + "px")
-               .style("left", (event.pageX + 18) + "px");
-      })
-      .on("mouseout", function() {
-        tooltip.style("visibility", "hidden");
-      });
+      .on("mousemove",e=>tooltip.style("top",(e.pageY-18)+"px").style("left",(e.pageX+18)+"px"))
+      .on("mouseout",()=>tooltip.style("visibility","hidden"));
 
-    const yg = g.append("g").attr("class", "y-axis")
+    const yg = g.append("g").attr("class","y-axis")
       .call(d3.axisLeft(y).tickSize(0).tickPadding(16));
 
     yg.selectAll("text")
-      .attr("dy", "0.32em")
-      .style("text-anchor", "end")
-      .each(function() {
+      .attr("dy","0.32em")
+      .style("text-anchor","end")
+      .each(function(){
         const t = d3.select(this);
         const txt = t.text(); t.text(null);
         const words = txt.split(/\s+/).reverse();
         let line = [], ln = 0;
         const lh = 1.28, mw = 190;
-        let tsp = t.append("tspan").attr("x", -10).attr("dy", "0em");
+        let tsp = t.append("tspan").attr("x",-10).attr("dy","0em");
 
-        while (words.length) {
+        while(words.length){
           let w = words.pop();
           line.push(w);
           tsp.text(line.join(" "));
-          if (tsp.node().getComputedTextLength() > mw && line.length > 1) {
+          if(tsp.node().getComputedTextLength() > mw && line.length > 1){
             line.pop();
             tsp.text(line.join(" "));
             line = [w];
             ln++;
-            tsp = t.append("tspan").attr("x", -10).attr("dy", `${ln * lh}em`).text(w);
+            tsp = t.append("tspan").attr("x",-10).attr("dy",`${ln*lh}em`).text(w);
           }
         }
-        if (ln > 0) {
-          const shift = -((ln) * (lh - 0.92) / 2) + "em";
-          t.attr("dy", shift);
+        if(ln>0){
+          const shift = -((ln)*(lh-0.92)/2) + "em";
+          t.attr("dy",shift);
         }
       });
 
-    g.append("g")
-      .attr("transform", `translate(0,${ih})`)
-      .call(d3.axisBottom(x));
+    g.append("g").attr("transform",`translate(0,${ih})`).call(d3.axisBottom(x));
 
     svg.append("text")
-      .attr("x", "50%")
-      .attr("y", 28)
-      .attr("text-anchor", "middle")
-      .style("font-size", "13.5px")
-      .style("font-weight", "600")
+      .attr("x","50%").attr("y",28)
+      .attr("text-anchor","middle")
+      .style("font-size","13.5px").style("font-weight",600)
       .text(`Top Sources – ${disp.title} (Total: ${disp.data.Total.toFixed(2)} Mtoe)`);
   }
 
   // ────────────────────────────────────────────────
-  // PIE CHART + legend
+  // PIE CHART + wrapped legend
   // ────────────────────────────────────────────────
   function updatePieChart() {
     const disp = getDisplayData();
@@ -480,12 +417,9 @@ d3.csv("renewables_sources.csv").then(function(rawData) {
     const cx = 160;
 
     const svg = d3.select("#pie-chart").html("")
-      .append("svg")
-      .attr("width", "100%")
-      .attr("height", h);
+      .append("svg").attr("width","100%").attr("height",h);
 
-    const pieG = svg.append("g")
-      .attr("transform", `translate(${cx},${h/2})`);
+    const pieG = svg.append("g").attr("transform",`translate(${cx},${h/2})`);
 
     const pie = d3.pie().value(d => d.value);
     const arc = d3.arc().innerRadius(0).outerRadius(r);
@@ -495,28 +429,23 @@ d3.csv("renewables_sources.csv").then(function(rawData) {
       .join("path")
       .attr("d", arc)
       .attr("fill", d => colorScale(d.data.name))
-      .attr("stroke", "#fff")
-      .attr("stroke-width", 1.2)
-      .on("mouseover", function(event, d) {
-        tooltip.style("visibility", "visible")
+      .attr("stroke","#fff").attr("stroke-width",1.2)
+      .on("mouseover",(e,d)=>{
+        tooltip.style("visibility","visible")
           .html(`${d.data.name}<br>${d.data.value.toFixed(2)} Mtoe<br>${(d.data.value/total*100).toFixed(1)}%`);
       })
-      .on("mousemove", function(event) {
-        tooltip.style("top", (event.pageY - 18) + "px")
-               .style("left", (event.pageX + 18) + "px");
-      })
-      .on("mouseout", function() {
-        tooltip.style("visibility", "hidden");
-      });
+      .on("mousemove",e=>tooltip.style("top",(e.pageY-18)+"px").style("left",(e.pageX+18)+"px"))
+      .on("mouseout",()=>tooltip.style("visibility","hidden"));
 
     svg.append("text")
-      .attr("x", cx)
-      .attr("y", 36)
-      .attr("text-anchor", "middle")
-      .style("font-size", "14px")
-      .style("font-weight", "600")
+      .attr("x",cx).attr("y",36)
+      .attr("text-anchor","middle")
+      .style("font-size","14px").style("font-weight",600)
       .text(`Source Shares – ${disp.title}`);
 
+    // ────────────────────────────────────────────────
+    // Legend with text wrapping for long names
+    // ────────────────────────────────────────────────
     const legX = cx + r + 60;
     const legH = 360;
     const fo = svg.append("foreignObject")
@@ -527,18 +456,30 @@ d3.csv("renewables_sources.csv").then(function(rawData) {
 
     const leg = fo.append("xhtml:div")
       .style("height", legH + "px")
-      .attr("class", "legend-fo");
+      .attr("class", "legend-fo")
+      .style("font-size", "12.5px")
+      .style("line-height", "1.4");
 
-    slices.forEach(function(d) {
+    slices.forEach(d => {
       const pct = (d.value / total * 100).toFixed(1);
-      const row = leg.append("div").attr("class", "legend-item");
-      row.append("div").attr("class", "legend-color").style("background", colorScale(d.name));
-      row.append("div").attr("class", "legend-text")
-        .html(`${d.name} <strong>– ${pct}%</strong> (${d.value.toFixed(2)} Mtoe)`);
+      const item = leg.append("div").attr("class", "legend-item");
+
+      item.append("div")
+        .attr("class", "legend-color")
+        .style("background", colorScale(d.name));
+
+      const textDiv = item.append("div")
+        .attr("class", "legend-text")
+        .style("flex", "1")
+        .style("word-break", "break-word")
+        .style("hyphens", "auto");
+
+      // Simple CSS-based wrapping + percentage bold
+      textDiv.html(`${d.name} <strong>– ${pct}%</strong> (${d.value.toFixed(2)} Mtoe)`);
     });
   }
 
-  updateAll = function() {
+  updateAll = () => {
     updateLineChart();
     updateBarChart();
     updatePieChart();
@@ -546,9 +487,9 @@ d3.csv("renewables_sources.csv").then(function(rawData) {
 
   updateAll();
 
-}).catch(function(error) {
-  console.error("Error loading or parsing CSV:", error);
-  alert("Failed to load renewables_sources.csv\n\nPlease check:\n1. File exists in the same folder as this HTML file\n2. File name is exactly 'renewables_sources.csv'\n3. You are opening the page via a local server (not double-click)\n\nSee browser console (F12) for more details.");
+}).catch(error => {
+  console.error("Error loading CSV:", error);
+  alert("Could not load renewables_sources.csv\n\nCheck:\n1. File is in the same folder\n2. Name is exactly 'renewables_sources.csv'\n3. Open page via local server (not double-click)");
 });
 
 function resetSelection() {
@@ -557,6 +498,5 @@ function resetSelection() {
   updateAll();
 }
 </script>
-
 </body>
 </html>
